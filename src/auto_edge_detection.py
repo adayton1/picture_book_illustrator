@@ -48,6 +48,6 @@ for imagePath in glob.glob(args["images"] + "/*.jpg"):
     # show the images
     if args["show"]:
         cv2.imshow("Original", image)
-        cv2.imshow("Edges", np.hstack([gray, auto]))
+        cv2.imshow("Grayscale v. Edges", np.hstack([gray, auto]))
         # cv2.imshow("Edges", np.hstack([wide, tight, auto]))
         cv2.waitKey(0)
