@@ -54,10 +54,8 @@ def word_list_to_vectors(filename):
 
     # Read the input file
     with open(filename, 'r') as infile:
-
         # Each line of the input file should have a word or phrase to process
         for line in infile:
-
             # Process the word or phrase
             doc = nlp(line)
 
