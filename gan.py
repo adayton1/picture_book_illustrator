@@ -3,11 +3,11 @@ import numpy as np
 import tensorflow as tf
 import os
 import cv2
-import sys
+import illustrator.auto_edge_detection
 
 batch_size = 1
-image_height = 28
-image_width = 28
+image_height = 200
+image_width = 200
 
 
 def conv(x, filter_size=8, stride=2, num_filters=64, is_output=False, name="conv"):
@@ -27,7 +27,9 @@ def conv(x, filter_size=8, stride=2, num_filters=64, is_output=False, name="conv
         if is_output:
             return out
         return tf.nn.relu(out)
-    # return tf.contrib.layers.batch_norm(tf.nn.relu(out))
+
+
+# return tf.contrib.layers.batch_norm(tf.nn.relu(out))
 
 
 def convt(x, out_shape, filter_size=8, stride=2, is_output=False, name="convt"):
@@ -46,7 +48,9 @@ def convt(x, out_shape, filter_size=8, stride=2, is_output=False, name="convt"):
         if is_output:
             return out
         return tf.nn.relu(out)
-    # return tf.contrib.layers.batch_norm(tf.nn.relu(out))
+
+
+# return tf.contrib.layers.batch_norm(tf.nn.relu(out))
 
 
 def fc(x, out_size=50, is_output=False, name="fc"):
@@ -69,7 +73,8 @@ def gen_model(seed_imgs):
         # convt1 = convt(seed_imgs, [batch_size, 7, 7, 128], filter_size=5, stride=2, name="g_convt1")
         conv1 = conv(seed_imgs, filter_size=5, stride=2, num_filters=64, name="g_convt1")
         # print("convt1", conv1.get_shape())
-        convt2 = convt(conv1, [batch_size, 28, 28, 1], filter_size=5, stride=2, is_output=True, name="g_convt2")
+        convt2 = convt(conv1, [batch_size, image_height, image_width, 1], filter_size=5, stride=2, is_output=True,
+                       name="g_convt2")
         # print("convt2", convt2.get_shape())
         return tf.sigmoid(convt2)
 
@@ -81,7 +86,8 @@ def disc_model(imgs, reuse):
         # print("conv1", conv1.get_shape())
         conv2 = conv(conv1, filter_size=5, stride=2, num_filters=64, name="d_conv2")
         # print("conv2", conv2.get_shape())
-        conv2_reshaped = tf.reshape(conv2, [batch_size, 7 * 7 * 64])
+        _, height, width, channels = conv2.get_shape()
+        conv2_reshaped = tf.reshape(conv2, [batch_size, int(height) * int(width) * 64])
         # print("conv2_reshaped", conv2_reshaped.get_shape())
         fc1 = fc(conv2_reshaped, out_size=1024, name="d_fc1")
         # print("fc1", fc1.get_shape())
@@ -91,8 +97,8 @@ def disc_model(imgs, reuse):
 
 
 with tf.name_scope('gan'):
-    gen_input = tf.placeholder(tf.float32, [None, 28, 28, 1], name="gen_input")
-    disc_input = tf.placeholder(tf.float32, [None, 28, 28, 1], name="disc_input")  # true images
+    gen_input = tf.placeholder(tf.float32, [None, image_height, image_width, 1], name="gen_input")
+    disc_input = tf.placeholder(tf.float32, [None, image_height, image_width, 1], name="disc_input")  # true images
 
     gen_output = gen_model(gen_input)
 
@@ -114,46 +120,61 @@ with tf.name_scope('gan'):
 
 # TODO: Train discriminator on true images 1 time for every 3 times on generated images
 
-def load_data(path='/mnt/pccfs/not_backed_up/data/quickdraw'):
+def load_data(path='/mnt/pccfs/not_backed_up/data/imagenet'):
     for filename in os.listdir(path):
-        for image in np.load(os.path.join(path, filename)):
-            yield np.reshape(image / 255.0, (batch_size, image_height, image_width, 1))
+        original_image = cv2.imread(os.path.join(path, filename))
+        if original_image is None:
+            continue
+
+        image = cv2.resize(original_image, (image_width, image_height))
 
 
-with tf.Session() as sess:
-    sess.run(tf.global_variables_initializer())
+        # image = cv2.GaussianBlur(cv2.bitwise_not(image), (3, 3), 0)
 
-    for epoch in range(100000):
-        i = 0
+        image = illustrator.auto_edge_detection.detect_edges(image)
+        cv2.imshow("original", original_image)
+        cv2.imshow("edges", cv2.bitwise_not(image))
+        cv2.waitKey(1000)
+        yield image
 
-        seed_image, true_image = None, None
-        for image in load_data():
-            if seed_image is None:
-                seed_image = image
-                continue
-            if true_image is None:
-                true_image = image
 
-            # train the GAN on a real image
-            sess.run(disc_optim, feed_dict={gen_input: seed_image, disc_input: true_image})
+for image in load_data():
+    pass
 
-            # train the GAN on 3 generated images
-            for j in range(3):
-                sess.run(gen_optim, feed_dict={gen_input: seed_image})
-
-            if i % 10 == 0:
-                cv2.imshow("seed image", np.reshape(seed_image, (image_height, image_width)))
-                cv2.imshow("true image", np.reshape(true_image, (image_height, image_width)))
-
-                disc_acc_val, disc_loss_val, gen_loss_val, gen_output_val, true_probs_val, gen_probs_val = sess.run(
-                    [disc_acc, disc_loss, gen_loss, gen_output, true_probs, gen_probs],
-                    feed_dict={gen_input: seed_image, disc_input: true_image})
-                print(i, disc_loss_val, gen_loss_val, disc_acc_val, true_probs_val, gen_probs_val, sep='\t')
-
-                cv2.imshow("generated", gen_output_val[0])
-
-                cv2.waitKey(10)
-
-            seed_image = None
-            true_image = None
-            i += 1
+# with tf.Session() as sess:
+# 	sess.run(tf.global_variables_initializer())
+#
+# 	for epoch in range(100000):
+# 		i = 0
+#
+# 		seed_image, true_image = None, None
+# 		for image in load_data():
+# 			if seed_image is None:
+# 				seed_image = image
+# 				continue
+# 			if true_image is None:
+# 				true_image = image
+#
+# 			# train the GAN on a real image
+# 			sess.run(disc_optim, feed_dict={gen_input: seed_image, disc_input: true_image})
+#
+# 			# train the GAN on 3 generated images
+# 			for j in range(3):
+# 				sess.run(gen_optim, feed_dict={gen_input: seed_image})
+#
+# 			if i % 10 == 0:
+# 				cv2.imshow("seed image", np.reshape(seed_image, (image_height, image_width)))
+# 				cv2.imshow("true image", np.reshape(true_image, (image_height, image_width)))
+#
+# 				disc_acc_val, disc_loss_val, gen_loss_val, gen_output_val, true_probs_val, gen_probs_val = sess.run(
+# 					[disc_acc, disc_loss, gen_loss, gen_output, true_probs, gen_probs],
+# 					feed_dict={gen_input: seed_image, disc_input: true_image})
+# 				print(i, disc_loss_val, gen_loss_val, disc_acc_val, true_probs_val, gen_probs_val, sep='\t')
+#
+# 				cv2.imshow("generated", gen_output_val[0])
+#
+# 				cv2.waitKey(10)
+#
+# 			seed_image = None
+# 			true_image = None
+# 			i += 1
