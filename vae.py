@@ -74,21 +74,32 @@ x = tf.placeholder(tf.float32, input_shape, name="x")
 y_ = tf.placeholder(tf.float32, output_shape, name="y_")
 
 
-# CONVOLUTIONAL VERSION
-fc1 = fc(x, out_size=7*7*32, name="fc1")
-fc1_reshaped = tf.reshape(fc1, [batch_size, 7, 7, 32])
-convt1 = convt(fc1_reshaped, [batch_size, 14, 14, 16], filter_size=3, stride=2, name="convt1")
+
+# ENCODER
+fc1 = fc(x, out_size=150, name="fc1")
+fc2 = fc(fc1, out_size=100, name="fc2")
+n_z = 5
+z_mean = fc(fc2, out_size=n_z, is_output=True, name="z_mean")
+z_stddev = fc(fc2, out_size=n_z, is_output=True, name="z_stddev")
+
+# the variational part in the middle
+true_sample = tf.random_normal([batch_size, n_z])
+#sampled_z = z_mean + (z_stddev * true_sample)
+sampled_z = z_mean + tf.exp(z_stddev / 2.0) * true_sample
+
+# DECODER
+fc3 = fc(sampled_z, out_size=7*7*32, name="fc3")
+fc3_reshaped = tf.reshape(fc3, [batch_size, 7, 7, 32])
+convt1 = convt(fc3_reshaped, [batch_size, 14, 14, 16], filter_size=3, stride=2, name="convt1")
 y = convt(convt1, output_shape, filter_size=3, stride=2, is_output=True, name="y")
 
-# FULLY CONNECTED VERSION
-# fc1 = fc(x, out_size=500, name="fc1")
-# fc2 = fc(fc1, out_size=150, name="fc2")
-# fc3 = fc(fc2, out_size=500, name="fc3")
-# fc4 = fc(fc3, out_size=784, is_output=True, name="fc4")
-# y = tf.reshape(fc4, [batch_size, image_height, image_width])
+# LOSS FUNCTION
+generation_loss = tf.reduce_mean((y_-y)**2.0)
+latent_loss = 0.5 * tf.reduce_sum(z_mean**2.0 + z_stddev**2.0 - tf.log(z_stddev**2.0+1e10) - 1.0)
+loss = tf.reduce_mean(generation_loss + latent_loss)
 
-loss = tf.reduce_mean((y_-y)**2)
-optimizer = tf.train.AdamOptimizer(0.00001).minimize(loss)
+# OPTIMIZER
+optimizer = tf.train.AdamOptimizer(0.001).minimize(loss)
 
 
 with tf.Session() as sess:
@@ -107,13 +118,18 @@ with tf.Session() as sess:
 
 			target = np.reshape(image, (batch_size, image_height, image_width, channels))
 
-			_, loss_val, output = sess.run([optimizer, loss, y], feed_dict={x: input_vec, y_: target})
+			_, loss_val, output, gen_loss_val, lat_loss_val, z_mean_val, z_stddev_val = sess.run(
+				[optimizer, loss, y, generation_loss, latent_loss, z_mean, z_stddev],
+				feed_dict={x: input_vec, y_: target})
 
-			print("LOSS:", loss_val)
+			print("LOSS:", loss_val, "GEN LOSS:", gen_loss_val, "LATENT LOSS:", lat_loss_val) #, z_mean_val, z_stddev_val)
 			cv2.imshow("target", np.reshape(image, (image_height, image_width)))
 			cv2.imshow("output", output[0])
 
-			cv2.waitKey(5)
+			cv2.waitKey(10)
 
-		print(" ** Saving weights **")
-		saver.save(sess, "autoencoder_autosave.ckpt")
+		if epoch % 10 == 0:
+			print(" ** Saving weights **")
+			saver.save(sess, "vae_autosave.ckpt")
+
+
