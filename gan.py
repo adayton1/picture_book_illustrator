@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import cv2
-import illustrator.auto_edge_detection
+import illustrator.utils
 
 batch_size = 1
 image_height = 200
@@ -97,12 +97,15 @@ def disc_model(imgs, reuse):
 
 
 with tf.name_scope('gan'):
-	gen_input = tf.placeholder(tf.float32, [None, image_height, image_width, 1], name="gen_input")
-	disc_input = tf.placeholder(tf.float32, [None, image_height, image_width, 1], name="disc_input")  # true images
+	gen_input = tf.placeholder(tf.float32, [image_height, image_width], name="gen_input")
+	disc_input = tf.placeholder(tf.float32, [image_height, image_width], name="disc_input")  # true images
 
-	gen_output = gen_model(gen_input)
+	gen_input_reshaped = tf.reshape(gen_input, [batch_size, image_height, image_width, 1])
+	disc_input_reshaped = tf.reshape(disc_input, [batch_size, image_height, image_width, 1])
 
-	true_probs = disc_model(disc_input, reuse=False)
+	gen_output = gen_model(gen_input_reshaped)
+
+	true_probs = disc_model(disc_input_reshaped, reuse=False)
 	gen_probs = disc_model(gen_output, reuse=True)
 
 	disc_loss = tf.reduce_mean(tf.log(true_probs + 0.4) + tf.log(0.6 - gen_probs))
@@ -112,10 +115,10 @@ with tf.name_scope('gan'):
 	t_vars = tf.trainable_variables()
 
 	disc_vars = [var for var in t_vars if "d_" in var.name]
-	disc_optim = tf.train.AdamOptimizer(0.0000001, beta1=0.01).minimize(-disc_loss, var_list=disc_vars)
+	disc_optim = tf.train.AdamOptimizer(0.00001, beta1=0.01).minimize(-disc_loss, var_list=disc_vars)
 
 	gen_vars = [var for var in t_vars if "g_" in var.name]
-	gen_optim = tf.train.AdamOptimizer(0.00000001, beta1=0.01).minimize(-gen_loss, var_list=gen_vars)
+	gen_optim = tf.train.AdamOptimizer(0.000001, beta1=0.01).minimize(-gen_loss, var_list=gen_vars)
 
 
 # TODO: Train discriminator on true images 1 time for every 3 times on generated images
@@ -123,58 +126,47 @@ with tf.name_scope('gan'):
 def load_data(path='/mnt/pccfs/not_backed_up/data/imagenet'):
 	for filename in os.listdir(path):
 		original_image = cv2.imread(os.path.join(path, filename))
+
 		if original_image is None:
 			continue
 
-		image = cv2.resize(original_image, (image_width, image_height))
+		yield illustrator.utils.convert_to_sketch(cv2.resize(original_image, (image_width, image_height)))
 
 
-		# image = cv2.GaussianBlur(cv2.bitwise_not(image), (3, 3), 0)
+with tf.Session() as sess:
+	sess.run(tf.global_variables_initializer())
 
-		image = illustrator.auto_edge_detection.detect_edges(image)
-		cv2.imshow("original", original_image)
-		cv2.imshow("edges", cv2.bitwise_not(image))
-		cv2.waitKey(1000)
-		yield image
+	for epoch in range(100000):
+		i = 0
 
+		seed_image, true_image = None, None
+		for image in load_data():
+			if seed_image is None:
+				seed_image = image
+				continue
+			if true_image is None:
+				true_image = image
 
-for image in load_data():
-	pass
+			# train the GAN on a real image
+			sess.run(disc_optim, feed_dict={gen_input: seed_image, disc_input: true_image})
 
-# with tf.Session() as sess:
-# 	sess.run(tf.global_variables_initializer())
-#
-# 	for epoch in range(100000):
-# 		i = 0
-#
-# 		seed_image, true_image = None, None
-# 		for image in load_data():
-# 			if seed_image is None:
-# 				seed_image = image
-# 				continue
-# 			if true_image is None:
-# 				true_image = image
-#
-# 			# train the GAN on a real image
-# 			sess.run(disc_optim, feed_dict={gen_input: seed_image, disc_input: true_image})
-#
-# 			# train the GAN on 3 generated images
-# 			for j in range(3):
-# 				sess.run(gen_optim, feed_dict={gen_input: seed_image})
-#
-# 			if i % 10 == 0:
-# 				cv2.imshow("seed image", np.reshape(seed_image, (image_height, image_width)))
-# 				cv2.imshow("true image", np.reshape(true_image, (image_height, image_width)))
-#
-# 				disc_acc_val, disc_loss_val, gen_loss_val, gen_output_val, true_probs_val, gen_probs_val = sess.run(
-# 					[disc_acc, disc_loss, gen_loss, gen_output, true_probs, gen_probs],
-# 					feed_dict={gen_input: seed_image, disc_input: true_image})
-# 				print(i, disc_loss_val, gen_loss_val, disc_acc_val, true_probs_val, gen_probs_val, sep='\t')
-#
-# 				cv2.imshow("generated", gen_output_val[0])
-#
-# 				cv2.waitKey(10)
-#
-# 			seed_image = None
-# 			true_image = None
-# 			i += 1
+			# train the GAN on 3 generated images
+			for j in range(3):
+				sess.run(gen_optim, feed_dict={gen_input: seed_image})
+
+			if i % 10 == 0:
+				cv2.imshow("seed image", np.reshape(seed_image, (image_height, image_width)))
+				cv2.imshow("true image", np.reshape(true_image, (image_height, image_width)))
+
+				disc_acc_val, disc_loss_val, gen_loss_val, gen_output_val, true_probs_val, gen_probs_val = sess.run(
+					[disc_acc, disc_loss, gen_loss, gen_output, true_probs, gen_probs],
+					feed_dict={gen_input: seed_image, disc_input: true_image})
+				print(i, disc_loss_val, gen_loss_val, disc_acc_val, true_probs_val, gen_probs_val, sep='\t')
+
+				cv2.imshow("generated", gen_output_val[0])
+
+				cv2.waitKey(10)
+
+			seed_image = None
+			true_image = None
+			i += 1

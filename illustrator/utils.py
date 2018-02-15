@@ -35,6 +35,11 @@ def detect_edges(image):
 	return auto
 
 
+def convert_to_sketch(image):
+	grayscale_image, _ = cv2.pencilSketch(image, sigma_s=60, sigma_r=0.07, shade_factor=0.05)
+	return grayscale_image
+
+
 def main():
 	# construct the argument parse and parse the arguments
 	ap = argparse.ArgumentParser()
