@@ -32,8 +32,14 @@ def detect_edges(image):
 	# wide = cv2.Canny(blurred, 10, 200)
 	# tight = cv2.Canny(blurred, 225, 250)
 	auto = auto_canny(blurred)
-
 	return auto
+
+
+def detect_edges_2(image):
+	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+	blur = cv2.bilateralFilter(gray, 7, 75, 75)
+	edges = auto_canny(blur)
+	return edges
 
 
 def convert_to_sketch(image):
@@ -42,25 +48,37 @@ def convert_to_sketch(image):
 
 
 def process_image(image_file_path, destination_dir, show_image):
-	# load the image, convert it to grayscale, and blur it slightly
+	# load the image
 	image = cv2.imread(image_file_path)
-	gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-	blurred = cv2.GaussianBlur(gray, (3, 3), 0)
 
-	# apply Canny edge detection using a wide threshold, tight threshold, and automatically determined threshold
-	# wide = cv2.Canny(blurred, 10, 200)
-	# tight = cv2.Canny(blurred, 225, 250)
-	auto = auto_canny(blurred)
+	# convert to edges with Gaussian blurring
+	edges = detect_edges(image)
 
-	# save the image
+	# save the edge detection image
 	(head, tail) = os.path.split(image_file_path)
-	destination_file_path = os.path.join(destination_dir, tail)
-	cv2.imwrite(destination_file_path, auto)
+	destination_file_path = os.path.join(destination_dir, "edges_" + tail)
+	cv2.imwrite(destination_file_path, edges)
+
+	# convert to edges to bilateral blurring
+	edges2 = detect_edges_2(image)
+
+	# save the edge detection image
+	destination_file_path = os.path.join(destination_dir, "edges2_" + tail)
+	cv2.imwrite(destination_file_path, edges2)
+
+	# convert to sketch
+	sketch = convert_to_sketch(image)
+
+	# save the sketch
+	destination_file_path = os.path.join(destination_dir, "sketch_" + tail)
+	cv2.imwrite(destination_file_path, sketch)
 
 	# show the images
 	if show_image:
 		cv2.imshow("Original", image)
-		cv2.imshow("Grayscale v. Edges", np.hstack([gray, auto]))
+		cv2.imshow("Edges", edges)
+		cv2.imshow("Edges2", edges2)
+		cv2.imshow("Sketch", sketch)
 		# cv2.imshow("Edges", np.hstack([wide, tight, auto]))
 		cv2.waitKey(0)
 
@@ -87,5 +105,5 @@ def main():
 		raise ValueError("{0} is not a valid file or directory".format(images))
 
 
-if __name__ == 'main':
+if __name__ == "__main__":
 	main()
