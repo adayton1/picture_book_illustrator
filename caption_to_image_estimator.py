@@ -1,29 +1,32 @@
+import uuid
+
 import tensorflow as tf
 
 
-def train_input_fn(file, num_epochs, batch_size, image_dims, noise_dims):
-	dataset = tf.data.TFRecordDataset([file])
+def train_input_fn(files, num_epochs, batch_size, image_dims, noise_dims):
+	with tf.device('/cpu:0'):
+		dataset = tf.data.TFRecordDataset(files)
 
-	def parser(record):
-		keys_to_features = {
-			"png": tf.FixedLenFeature((), tf.string, default_value=""),
-			# "label": tf.FixedLenFeature((), tf.int64),
-		}
-		parsed = tf.parse_single_example(record, keys_to_features)
-		image = tf.image.decode_png(parsed["png"], channels=image_dims[-1], dtype=tf.uint16)
-		image = tf.image.convert_image_dtype(image, tf.float32)
-		image = tf.reshape(image, image_dims)
-		# image = (tf.to_float(image) - 128.0) / 128.0
-		return image
+		def parser(record):
+			keys_to_features = {
+				"feature/encoded": tf.FixedLenFeature((), tf.string, default_value=""),
+				# "label/encoded": tf.FixedLenFeature((), tf.int64),
+			}
+			parsed = tf.parse_single_example(record, keys_to_features)
+			image = tf.image.decode_png(parsed["feature/encoded"], channels=image_dims[-1], dtype=tf.uint16)
+			image = tf.image.convert_image_dtype(image, tf.float32)
+			image = tf.reshape(image, image_dims)
+			# image = (tf.to_float(image) - 128.0) / 128.0
+			return image
 
-	dataset = dataset.map(parser)
-	dataset = dataset.shuffle(buffer_size=1000)
-	dataset = dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
-	dataset = dataset.repeat(num_epochs)
-	iterator = dataset.make_one_shot_iterator()
+		dataset = dataset.map(parser)
+		dataset = dataset.shuffle(buffer_size=1000)
+		dataset = dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+		dataset = dataset.repeat(num_epochs)
+		iterator = dataset.make_one_shot_iterator()
 
-	images = iterator.get_next()
-	noise = tf.random_normal([batch_size, noise_dims])
+		images = iterator.get_next()
+		noise = tf.random_normal([batch_size, noise_dims])
 	return noise, images
 
 
@@ -77,8 +80,10 @@ def discriminator_fn(img, unused_conditioning=None, activation_fn=lambda net: tf
 			activation_fn=activation_fn, normalizer_fn=None,
 			weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
 			biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		net = tf.contrib.layers.conv2d(img, 128, [4, 4], stride=2)  # FIXME: originally 64, changed because of noise_dims
-		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)  # FIXME: originally 128, changed because of noise_d
+		# FIXME: originally 64, changed because of noise_dims
+		net = tf.contrib.layers.conv2d(img, 128, [4, 4], stride=2)
+		# FIXME: originally 128, changed because of noise_dims
+		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)
 		net = tf.contrib.layers.flatten(net)
 		net = tf.contrib.layers.fully_connected(net, 1024, normalizer_fn=tf.contrib.layers.layer_norm)
 		return tf.contrib.layers.linear(net, 1)
@@ -87,21 +92,25 @@ def discriminator_fn(img, unused_conditioning=None, activation_fn=lambda net: tf
 def main():
 	num_epochs = 300000
 	batch_size = 16
-	train_file = '/mnt/pccfs/not_backed_up/data/quickdraw_tf/slim.tfrecords'
+	samples_per_category = 1
+	training_files = ['/mnt/pccfs/not_backed_up/data/quickdraw_tf/train_{}.tfrecords'.format(samples_per_category)]
 	image_dims = (28, 28, 1)  # height, width, channels
 	noise_dims = 128  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
+	logdir = 'logdir/{}'.format(str(uuid.uuid4())[:8])
 
+	print("starting run", logdir)
 	gan_estimator = tf.contrib.gan.estimator.GANEstimator(
-		'logdir',
+		logdir,
 		generator_fn=generator_fn,
 		discriminator_fn=discriminator_fn,
 		generator_loss_fn=tf.contrib.gan.losses.wasserstein_generator_loss,
 		discriminator_loss_fn=tf.contrib.gan.losses.wasserstein_discriminator_loss,
 		generator_optimizer=tf.train.AdamOptimizer(0.0001, 0.5),
 		discriminator_optimizer=tf.train.AdamOptimizer(0.00001, 0.5),
-		add_summaries=tf.contrib.gan.estimator.SummaryType.IMAGES)
+		add_summaries=tf.contrib.gan.estimator.SummaryType.IMAGES,
+		config=tf.estimator.RunConfig(session_config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))))
 
-	gan_estimator.train(lambda: train_input_fn(train_file, num_epochs, batch_size, image_dims, noise_dims),
+	gan_estimator.train(lambda: train_input_fn(training_files, num_epochs, batch_size, image_dims, noise_dims),
 						max_steps=num_epochs)
 
 # gan_estimator.evaluate(eval_input_fn)
