@@ -42,6 +42,23 @@ def detect_edges_2(image):
 	return edges
 
 
+def detect_edges_3(image):
+	#image_height = 720
+	#image_width = 1280
+	#resized_image = cv2.resize(image, (image_width, image_height))
+	cv2.imshow("Original", image)
+	dst2 = cv2.stylization(image, sigma_s=60, sigma_r=0.07)
+	cv2.imshow("Testing", dst2)
+	dst = cv2.edgePreservingFilter(image, flags=2, sigma_s=60, sigma_r=0.4)
+	cv2.imshow("Filtered", dst)
+	gray = cv2.cvtColor(dst, cv2.COLOR_BGR2GRAY)
+	cv2.imshow("Filtered Gray", gray)
+	edges = auto_canny(gray)
+	cv2.imshow("Filtered Gray Edges", edges)
+	cv2.waitKey(0)
+	return edges
+
+
 def convert_to_sketch(image):
 	grayscale_image, _ = cv2.pencilSketch(image, sigma_s=60, sigma_r=0.07, shade_factor=0.05)
 	return grayscale_image
@@ -65,6 +82,13 @@ def process_image(image_file_path, destination_dir, show_image):
 	# save the edge detection image
 	destination_file_path = os.path.join(destination_dir, "edges2_" + tail)
 	cv2.imwrite(destination_file_path, edges2)
+
+	# convert to edges to bilateral blurring
+	edges3 = detect_edges_3(image)
+
+	# save the edge detection image
+	destination_file_path = os.path.join(destination_dir, "edges3_" + tail)
+	cv2.imwrite(destination_file_path, edges3)
 
 	# convert to sketch
 	sketch = convert_to_sketch(image)
