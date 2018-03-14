@@ -1,31 +1,38 @@
+import glob
+import math
+import multiprocessing
 import uuid
 
 import tensorflow as tf
 
 
-def train_input_fn(files, num_epochs, batch_size, image_dims, noise_dims):
+def train_input_fn(file_paths, num_epochs, batch_size, image_dims, noise_dims, num_take=-1):
 	with tf.device('/cpu:0'):
-		dataset = tf.data.TFRecordDataset(files)
+		dataset = tf.data.TFRecordDataset(file_paths)
 
 		def parser(record):
 			keys_to_features = {
 				"feature/encoded": tf.FixedLenFeature((), tf.string, default_value=""),
+				# "feature/format": tf.FixedLenFeature((), tf.string, default_value="png"),
+				# "feature/channels": tf.FixedLenFeature((), tf.int64, default_value=1),
 				# "label/encoded": tf.FixedLenFeature((), tf.int64),
+				"label/human": tf.FixedLenFeature((), tf.string, default_value=""),
 			}
 			parsed = tf.parse_single_example(record, keys_to_features)
 			image = tf.image.decode_png(parsed["feature/encoded"], channels=image_dims[-1], dtype=tf.uint16)
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			image = tf.reshape(image, image_dims)
 			# image = (tf.to_float(image) - 128.0) / 128.0
-			return image
+			return image, parsed["label/human"]
 
-		dataset = dataset.map(parser)
+		dataset = dataset.map(parser, num_parallel_calls=max(math.floor(multiprocessing.cpu_count() / 1.3), 1))
+		dataset = dataset.take(num_take)
 		dataset = dataset.shuffle(buffer_size=1000)
 		dataset = dataset.apply(tf.contrib.data.batch_and_drop_remainder(batch_size))
+		dataset = dataset.prefetch(buffer_size=1000)
 		dataset = dataset.repeat(num_epochs)
-		iterator = dataset.make_one_shot_iterator()
 
-		images = iterator.get_next()
+		images, _ = dataset.make_one_shot_iterator().get_next()
 		noise = tf.random_normal([batch_size, noise_dims])
 	return noise, images
 
@@ -36,7 +43,7 @@ def predict_input_fn(batch_size, noise_dims):
 
 
 def generator_fn(noise, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
-	"""Simple generator to produce images.
+	"""Simple geneconditional GANrator to produce images.
 
 	Args:
 		noise: A single Tensor representing noise.
@@ -47,21 +54,24 @@ def generator_fn(noise, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
 		A generated image in the range [-1, 1].
 	"""
 	with tf.contrib.slim.arg_scope(
-			[tf.contrib.layers.fully_connected, tf.contrib.layers.conv2d_transpose],
-			activation_fn=activation_fn, normalizer_fn=tf.contrib.layers.batch_norm,
-			weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		net = tf.contrib.layers.fully_connected(noise, 1024)
-		net = tf.contrib.layers.fully_connected(net, 7 * 7 * 128)
-		net = tf.reshape(net, [-1, 7, 7, 128])
+		[tf.contrib.layers.fully_connected, tf.contrib.layers.conv2d_transpose],
+		activation_fn=activation_fn,
+		normalizer_fn=tf.contrib.layers.batch_norm,
+		weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
+		net = tf.contrib.layers.fully_connected(noise, 2048)
+		net = tf.contrib.layers.fully_connected(net, 7 * 7 * 256)
+		net = tf.reshape(net, [-1, 7, 7, 256])
+		net = tf.contrib.layers.conv2d_transpose(net, 128, [4, 4], stride=2)
 		net = tf.contrib.layers.conv2d_transpose(net, 64, [4, 4], stride=2)
-		net = tf.contrib.layers.conv2d_transpose(net, 32, [4, 4], stride=2)
 		# Make sure that generator output is in the same range as `inputs` ie [-1, 1].
 		net = tf.contrib.layers.conv2d(net, 1, 4, activation_fn=tf.tanh, normalizer_fn=None)
 		return net
 
 
-def discriminator_fn(img, unused_conditioning=None, activation_fn=lambda net: tf.nn.leaky_relu(net, alpha=0.01),
-					 weight_decay=2.5e-5):
+def discriminator_fn(img,
+						unused_conditioning=None,
+						activation_fn=lambda net: tf.nn.leaky_relu(net, alpha=0.01),
+						weight_decay=2.5e-5):
 	"""Discriminator network on images.
 
 	Args:
@@ -69,33 +79,34 @@ def discriminator_fn(img, unused_conditioning=None, activation_fn=lambda net: tf
 		unused_conditioning: The TFGAN API can help with conditional GANs, which
 			would require extra `condition` information to both the generator and the
 			discriminator. This argument is not used because this is an unconditional GAN.
-		activation_fn: The activation fn.
+		activation_fn: The activation function.
 		weight_decay: The L2 weight decay.
 
 	Returns:
 		Logits for the probability that the image is real.
 	"""
 	with tf.contrib.slim.arg_scope(
-			[tf.contrib.layers.conv2d, tf.contrib.layers.fully_connected],
-			activation_fn=activation_fn, normalizer_fn=None,
-			weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-			biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
+		[tf.contrib.layers.conv2d, tf.contrib.layers.fully_connected],
+		activation_fn=activation_fn,
+		normalizer_fn=None,
+		weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
+		biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
 		# FIXME: originally 64, changed because of noise_dims
 		net = tf.contrib.layers.conv2d(img, 128, [4, 4], stride=2)
 		# FIXME: originally 128, changed because of noise_dims
 		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)
 		net = tf.contrib.layers.flatten(net)
-		net = tf.contrib.layers.fully_connected(net, 1024, normalizer_fn=tf.contrib.layers.layer_norm)
+		# FIXME: changed because of noise_dims
+		net = tf.contrib.layers.fully_connected(net, 2048, normalizer_fn=tf.contrib.layers.layer_norm)
 		return tf.contrib.layers.linear(net, 1)
 
 
 def main():
 	num_epochs = 300000
-	batch_size = 16
-	samples_per_category = 1
-	training_files = ['/mnt/pccfs/not_backed_up/data/quickdraw_tf/train_{}.tfrecords'.format(samples_per_category)]
+	batch_size = 64
+	training_files = glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/cat.tfrecords')
 	image_dims = (28, 28, 1)  # height, width, channels
-	noise_dims = 128  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
+	noise_dims = 256  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
 	logdir = 'logdir/{}'.format(str(uuid.uuid4())[:8])
 
 	print("starting run", logdir)
@@ -110,8 +121,9 @@ def main():
 		add_summaries=tf.contrib.gan.estimator.SummaryType.IMAGES,
 		config=tf.estimator.RunConfig(session_config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))))
 
-	gan_estimator.train(lambda: train_input_fn(training_files, num_epochs, batch_size, image_dims, noise_dims),
-						max_steps=num_epochs)
+	gan_estimator.train(
+		lambda: train_input_fn(training_files, num_epochs, batch_size, image_dims, noise_dims), max_steps=num_epochs)
+
 
 # gan_estimator.evaluate(eval_input_fn)
 
@@ -120,7 +132,6 @@ def main():
 # image_rows = [np.concatenate(predictions[i:i + 6], axis=0) for i in range(0, 36, 6)]
 # tiled_image = np.concatenate(image_rows, axis=1)
 # print(tiled_image)
-
 
 if __name__ == '__main__':
 	main()
