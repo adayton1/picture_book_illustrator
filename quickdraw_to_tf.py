@@ -30,7 +30,7 @@ def write_tfrecord(label_id, src_path, limit=0, image_dims=(28, 28, 1), image_fo
 	sample = raw[np.random.choice(raw.shape[0], limit, replace=False), :] if limit else raw
 	for image in sample:
 		img = BytesIO()
-		Image.fromarray(np.atleast_2d(image)).save(img, 'PNG')
+		Image.fromarray(np.reshape(image, image_dims)).save(img, 'PNG')
 		img = img.getvalue()
 
 		feature = {
@@ -46,6 +46,7 @@ def write_tfrecord(label_id, src_path, limit=0, image_dims=(28, 28, 1), image_fo
 
 		record_writer.write(example.SerializeToString())
 
+
 if __name__ == '__main__':
-	with multiprocessing.Pool(processes=12) as pool:
+	with multiprocessing.Pool(multiprocessing.cpu_count() - 1) as pool:
 		pool.starmap(write_tfrecord, enumerate(sorted(glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/*.npy'))))
