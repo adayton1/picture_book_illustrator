@@ -2,6 +2,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 import os
+import glob
 import cv2
 import sys
 
@@ -57,8 +58,8 @@ def fc(x, out_size=50, is_output=False, name="fc"):
 
 
 def load_data(path='/mnt/pccfs/not_backed_up/data/quickdraw'):
-	for filename in os.listdir(path):
-		for image in np.load(os.path.join(path, filename)):
+	for file_path in glob.glob('{}/*.npy'.format(path)):
+		for image in np.load(file_path):
 			yield image
 
 batch_size = 1
