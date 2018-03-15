@@ -13,16 +13,12 @@ def train_input_fn(file_paths, num_epochs, batch_size, image_dims, noise_dims, n
 		def parser(record):
 			keys_to_features = {
 				"feature/encoded": tf.FixedLenFeature((), tf.string, default_value=""),
-				# "feature/format": tf.FixedLenFeature((), tf.string, default_value="png"),
-				# "feature/channels": tf.FixedLenFeature((), tf.int64, default_value=1),
-				"label/encoded": tf.FixedLenFeature(shape=(), dtype=tf.int64)  # TODO: is this a list?
-				# "label/human": tf.FixedLenFeature((), tf.string, default_value=""),
+				"label/encoded": tf.FixedLenFeature(shape=(), dtype=tf.int64)
 			}
 			parsed = tf.parse_single_example(record, keys_to_features)
 			image = tf.image.decode_png(parsed["feature/encoded"], channels=image_dims[-1], dtype=tf.uint16)
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			image = tf.reshape(image, image_dims)
-			# image = (tf.to_float(image) - 128.0) / 128.0
 			# TODO: do not hardcode number of label classes
 			return image, tf.stack(tf.one_hot(parsed["label/encoded"], 385))
 
@@ -126,14 +122,6 @@ def main():
 	gan_estimator.train(
 		lambda: train_input_fn(training_files, num_epochs, batch_size, image_dims, noise_dims), max_steps=num_epochs)
 
-
-# gan_estimator.evaluate(eval_input_fn)
-
-# predictions = np.array([x for x in gan_estimator.predict(lambda: predict_input_fn(batch_size, image_dims))])
-
-# image_rows = [np.concatenate(predictions[i:i + 6], axis=0) for i in range(0, 36, 6)]
-# tiled_image = np.concatenate(image_rows, axis=1)
-# print(tiled_image)
 
 if __name__ == '__main__':
 	main()
