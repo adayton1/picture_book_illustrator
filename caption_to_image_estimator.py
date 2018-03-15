@@ -15,15 +15,16 @@ def train_input_fn(file_paths, num_epochs, batch_size, image_dims, noise_dims, n
 				"feature/encoded": tf.FixedLenFeature((), tf.string, default_value=""),
 				# "feature/format": tf.FixedLenFeature((), tf.string, default_value="png"),
 				# "feature/channels": tf.FixedLenFeature((), tf.int64, default_value=1),
-				# "label/encoded": tf.FixedLenFeature((), tf.int64),
-				"label/human": tf.FixedLenFeature((), tf.string, default_value=""),
+				"label/encoded": tf.FixedLenFeature(shape=(), dtype=tf.int64)  # TODO: is this a list?
+				# "label/human": tf.FixedLenFeature((), tf.string, default_value=""),
 			}
 			parsed = tf.parse_single_example(record, keys_to_features)
 			image = tf.image.decode_png(parsed["feature/encoded"], channels=image_dims[-1], dtype=tf.uint16)
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			image = tf.reshape(image, image_dims)
 			# image = (tf.to_float(image) - 128.0) / 128.0
-			return image, parsed["label/human"]
+			# TODO: do not hardcode number of label classes
+			return image, tf.stack(tf.one_hot(parsed["label/encoded"], 385))
 
 		dataset = dataset.map(parser, num_parallel_calls=max(math.floor(multiprocessing.cpu_count() / 1.3), 1))
 		dataset = dataset.take(num_take)
@@ -32,9 +33,9 @@ def train_input_fn(file_paths, num_epochs, batch_size, image_dims, noise_dims, n
 		dataset = dataset.prefetch(buffer_size=1000)
 		dataset = dataset.repeat(num_epochs)
 
-		images, _ = dataset.make_one_shot_iterator().get_next()
+		images, one_hot_label = dataset.make_one_shot_iterator().get_next()
 		noise = tf.random_normal([batch_size, noise_dims])
-	return noise, images
+	return (noise, one_hot_label), images
 
 
 def predict_input_fn(batch_size, noise_dims):
@@ -42,11 +43,11 @@ def predict_input_fn(batch_size, noise_dims):
 	return noise
 
 
-def generator_fn(noise, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
+def generator_fn(inputs, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
 	"""Simple geneconditional GANrator to produce images.
 
 	Args:
-		noise: A single Tensor representing noise.
+		inputs: A 2-tuple of Tensors (noise, one_hot_labels).
 		activation_fn: The activation fn.
 		weight_decay: The value of the l2 weight decay.
 
@@ -58,7 +59,8 @@ def generator_fn(noise, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
 		activation_fn=activation_fn,
 		normalizer_fn=tf.contrib.layers.batch_norm,
 		weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		net = tf.contrib.layers.fully_connected(noise, 2048)
+		net = tf.contrib.layers.fully_connected(inputs[0], 2048)
+		net = tf.contrib.gan.features.condition_tensor_from_onehot(net, inputs[1])
 		net = tf.contrib.layers.fully_connected(net, 7 * 7 * 256)
 		net = tf.reshape(net, [-1, 7, 7, 256])
 		net = tf.contrib.layers.conv2d_transpose(net, 128, [4, 4], stride=2)
@@ -68,18 +70,16 @@ def generator_fn(noise, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
 		return net
 
 
-def discriminator_fn(img,
-						unused_conditioning=None,
-						activation_fn=lambda net: tf.nn.leaky_relu(net, alpha=0.01),
-						weight_decay=2.5e-5):
+def discriminator_fn(image,
+					 conditioning,
+					 activation_fn=lambda net: tf.nn.leaky_relu(net, alpha=0.01),
+					 weight_decay=2.5e-5):
 	"""Discriminator network on images.
 
 	Args:
-		img: Real or generated image. Should be in the range [-1, 1].
-		unused_conditioning: The TFGAN API can help with conditional GANs, which
-			would require extra `condition` information to both the generator and the
-			discriminator. This argument is not used because this is an unconditional GAN.
-		activation_fn: The activation function.
+		image: Real or generated image. Should be in the range [-1, 1].
+		conditioning: A 2-tuple of Tensors representing (noise, one_hot_labels).
+		activation_fn: The activation evalfunction.
 		weight_decay: The L2 weight decay.
 
 	Returns:
@@ -92,10 +92,11 @@ def discriminator_fn(img,
 		weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
 		biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
 		# FIXME: originally 64, changed because of noise_dims
-		net = tf.contrib.layers.conv2d(img, 128, [4, 4], stride=2)
+		net = tf.contrib.layers.conv2d(image, 128, [4, 4], stride=2)
 		# FIXME: originally 128, changed because of noise_dims
 		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)
 		net = tf.contrib.layers.flatten(net)
+		net = tf.contrib.gan.features.condition_tensor_from_onehot(net, conditioning[1])
 		# FIXME: changed because of noise_dims
 		net = tf.contrib.layers.fully_connected(net, 2048, normalizer_fn=tf.contrib.layers.layer_norm)
 		return tf.contrib.layers.linear(net, 1)
@@ -104,8 +105,9 @@ def discriminator_fn(img,
 def main():
 	num_epochs = 300000
 	batch_size = 64
-	training_files = glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/cat.tfrecords')
+	training_files = glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/*.tfrecords')
 	image_dims = (28, 28, 1)  # height, width, channels
+	# label_dims = (385, 2)
 	noise_dims = 256  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
 	logdir = 'logdir/{}'.format(str(uuid.uuid4())[:8])
 
