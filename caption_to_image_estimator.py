@@ -39,7 +39,7 @@ def predict_input(batch_size, noise_dims):
 
 
 def generator(inputs, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
-	"""Simple geneconditional GANrator to produce images.
+	"""Conditional generator to produce drawn images.
 
 	Args:
 		inputs: A 2-tuple of Tensors (noise, one_hot_labels).
@@ -72,7 +72,7 @@ def discriminator(image, conditioning, activation_fn=lambda net: tf.nn.leaky_rel
 	Args:
 		image: Real or generated image. Should be in the range [-1, 1].
 		conditioning: A 2-tuple of Tensors representing (noise, one_hot_labels).
-		activation_fn: The activation evalfunction.
+		activation_fn: The activation function.
 		weight_decay: The L2 weight decay.
 
 	Returns:
