@@ -84,20 +84,17 @@ def discriminator(image, conditioning, activation_fn=lambda net: tf.nn.leaky_rel
 	    normalizer_fn=None,
 	    weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
 	    biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		# FIXME: originally 64, changed because of noise_dims
 		net = tf.contrib.layers.conv2d(image, 128, [4, 4], stride=2)
-		# FIXME: originally 128, changed because of noise_dims
 		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)
 		net = tf.contrib.layers.flatten(net)
 		net = tf.contrib.gan.features.condition_tensor_from_onehot(net, conditioning[1])
-		# FIXME: changed because of noise_dims
 		net = tf.contrib.layers.fully_connected(net, 2048, normalizer_fn=tf.contrib.layers.layer_norm)
 		return tf.contrib.layers.linear(net, 1)
 
 
 def main():
-	num_epochs = 800000
-	batch_size = 64
+	num_epochs = int(1.2e6)
+	batch_size = 128
 	files = glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/*.tfrecords')
 	image_dims = (28, 28, 1)  # height, width, channels
 	noise_dims = 256  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
@@ -111,8 +108,8 @@ def main():
 		discriminator_fn=discriminator,
 		generator_loss_fn=tf.contrib.gan.losses.wasserstein_generator_loss,
 		discriminator_loss_fn=tf.contrib.gan.losses.wasserstein_discriminator_loss,
-		generator_optimizer=tf.train.AdamOptimizer(0.0001, 0.5),
-		discriminator_optimizer=tf.train.AdamOptimizer(0.00001, 0.5),
+		generator_optimizer=tf.train.AdamOptimizer(0.00001, 0.5),
+		discriminator_optimizer=tf.train.AdamOptimizer(0.000001, 0.5),
 		add_summaries=tf.contrib.gan.estimator.SummaryType.IMAGES,
 		config=tf.estimator.RunConfig(session_config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))))
 
