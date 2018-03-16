@@ -13,13 +13,13 @@ def train_input(file_paths, num_epochs, batch_size, image_dims, noise_dims, num_
 		def parser(record):
 			keys_to_features = {
 			    "feature/encoded": tf.FixedLenFeature((), tf.string, default_value=""),
-			    "label/encoded": tf.FixedLenFeature(shape=(), dtype=tf.int64)
+			    "label/encoded": tf.FixedLenFeature(shape=(num_label_classes,), dtype=tf.int64)
 			}
 			parsed = tf.parse_single_example(record, keys_to_features)
 			image = tf.image.decode_png(parsed["feature/encoded"], channels=image_dims[-1], dtype=tf.uint16)
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			image = tf.reshape(image, image_dims)
-			return image, tf.stack(tf.one_hot(parsed["label/encoded"], num_label_classes))
+			return image, parsed["label/encoded"]
 
 		dataset = dataset.shuffle(buffer_size=100000)
 		dataset = dataset.take(num_take)
