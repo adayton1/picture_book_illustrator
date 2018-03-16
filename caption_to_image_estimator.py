@@ -101,7 +101,7 @@ def main():
 	files = glob.glob('/mnt/pccfs/not_backed_up/data/quickdraw/*.tfrecords')
 	image_dims = (28, 28, 1)  # height, width, channels
 	noise_dims = 256  # FIXME: originally 64, cannot tune this hyperparameter without breaking everything
-	num_label_classes = 385
+	num_label_classes = 345
 	logdir = 'logdir/{}'.format(time.strftime('%Y%m%d-%H%M%S'))
 
 	print("starting run", logdir)
