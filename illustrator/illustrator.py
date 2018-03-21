@@ -39,11 +39,12 @@ def illustrate(input_file, output_dir):
 
         # Download image
         keywords = "{0}".format(" ".join(nouns))
-        subprocess.call(["googleimagesdownload", "-k", keywords, "-l", "1", "-o", output_dir])
+        subprocess.call(["googleimagesdownload", "-k", keywords, "-l", "1", "-o", output_dir, "-f", "jpg"])
 
         # Move image to destination
         temp_dir = os.path.join(output_dir, keywords)
         temp = subprocess.check_output(["ls", temp_dir])[:-1]   # Throw away the \n character returned by ls
+        temp = temp.decode("utf-8")
         filename, file_extension = os.path.splitext(temp)
         full_file_path = os.path.join(temp_dir, temp)
         destination = os.path.join(output_dir, "{0}".format(i) + file_extension)
