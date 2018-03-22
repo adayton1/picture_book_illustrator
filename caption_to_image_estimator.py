@@ -50,18 +50,18 @@ def generator(inputs, activation_fn=tf.nn.relu, weight_decay=2.5e-5):
 		A generated image in the range [-1, 1].
 	"""
 	with tf.contrib.slim.arg_scope(
-	    [tf.contrib.layers.fully_connected, tf.contrib.layers.conv2d_transpose],
+	    [tf.layers.dense, tf.layers.conv2d_transpose],
 	    activation_fn=activation_fn,
-	    normalizer_fn=tf.contrib.layers.batch_norm,
-	    weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		net = tf.contrib.layers.fully_connected(inputs[0], 2048)
+	    normalizer_fn=tf.layers.batch_normalization,
+	    weights_regularizer=tf.layers.l2_regularizer(weight_decay)):
+		net = tf.layers.dense(inputs[0], 2048)
 		net = tf.contrib.gan.features.condition_tensor_from_onehot(net, inputs[1])
-		net = tf.contrib.layers.fully_connected(net, 7 * 7 * 256)
+		net = tf.layers.dense(net, 7 * 7 * 256)
 		net = tf.reshape(net, [-1, 7, 7, 256])
-		net = tf.contrib.layers.conv2d_transpose(net, 128, [4, 4], stride=2)
-		net = tf.contrib.layers.conv2d_transpose(net, 64, [4, 4], stride=2)
+		net = tf.layers.conv2d_transpose(net, 128, [4, 4], stride=2)
+		net = tf.layers.conv2d_transpose(net, 64, [4, 4], stride=2)
 		# Make sure that generator output is in the same range as `inputs` ie [-1, 1].
-		net = tf.contrib.layers.conv2d(net, 1, 4, activation_fn=tf.tanh, normalizer_fn=None)
+		net = tf.layers.conv2d(net, 1, 4, activation_fn=tf.tanh, normalizer_fn=None)
 		return net
 
 
@@ -79,17 +79,17 @@ def discriminator(image, conditioning, activation_fn=lambda net: tf.nn.leaky_rel
 		Logits for the probability that the image is real.
 	"""
 	with tf.contrib.slim.arg_scope(
-	    [tf.contrib.layers.conv2d, tf.contrib.layers.fully_connected],
+	    [tf.layers.conv2d, tf.layers.dense],
 	    activation_fn=activation_fn,
 	    normalizer_fn=None,
-	    weights_regularizer=tf.contrib.layers.l2_regularizer(weight_decay),
-	    biases_regularizer=tf.contrib.layers.l2_regularizer(weight_decay)):
-		net = tf.contrib.layers.conv2d(image, 128, [4, 4], stride=2)
-		net = tf.contrib.layers.conv2d(net, 256, [4, 4], stride=2)
-		net = tf.contrib.layers.flatten(net)
+	    weights_regularizer=tf.layers.l2_regularizer(weight_decay),
+	    biases_regularizer=tf.layers.l2_regularizer(weight_decay)):
+		net = tf.layers.conv2d(image, 128, [4, 4], stride=2)
+		net = tf.layers.conv2d(net, 256, [4, 4], stride=2)
+		net = tf.layers.flatten(net)
 		net = tf.contrib.gan.features.condition_tensor_from_onehot(net, conditioning[1])
-		net = tf.contrib.layers.fully_connected(net, 2048, normalizer_fn=tf.contrib.layers.layer_norm)
-		return tf.contrib.layers.linear(net, 1)
+		net = tf.layers.dense(net, 2048, normalizer_fn=tf.layers.layer_norm)
+		return tf.layers.linear(net, 1)
 
 
 def main():
