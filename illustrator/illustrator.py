@@ -65,7 +65,7 @@ def illustrate(input_file, output_dir, style_model):
 
     # Iterate through each page
     for i, page in enumerate(pages):
-        print("Illustrating page {0}...".format(i))
+        print("\n\nIllustrating page {0}...".format(i))
 
         print("Natural language processing...")
         page_doc = nlp(page)
@@ -96,7 +96,7 @@ def illustrate(input_file, output_dir, style_model):
         subprocess.call(["rm", "-r", temp_dir])
 
         # Stylize image
-        stylize_image(destination, destination, style_model, i)
+        stylize_image(destination, destination, style_model)
         #subprocess.call(["python", "stylize_image.py", "--input_img_path", destination, "--output_img_path",
         #                "./out.jpg", "--model_path", "./models/starry_final.ckpt"])
 
