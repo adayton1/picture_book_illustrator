@@ -23,6 +23,72 @@ def read_file(input_file):
     return text, pages
 
 
+def google_image_search(keywords, output_file_name, output_dir):
+    # Download the first image corresponding to the keyword search
+    subprocess.call(["googleimagesdownload", "-k", keywords, "-l", "1", "-o", output_dir, "-f", "jpg"])
+
+    # Get the path to where the downloaded image was saved
+    download_dir = os.path.join(output_dir, keywords)
+    downloaded_file_name = subprocess.check_output(["ls", download_dir])[:-1]  # Throw away the \n character returned by ls
+    downloaded_file_name = downloaded_file_name.decode("utf-8")
+    downloaded_file_path = os.path.join(download_dir, downloaded_file_name)
+
+    # Get the filename and extension
+    filename, file_extension = os.path.splitext(downloaded_file_path)
+
+    # Move to the destination
+    destination = os.path.join(output_dir, output_file_name + file_extension)
+    subprocess.call(["mv", downloaded_file_path, destination])
+
+    # Clear out the temporary folder
+    subprocess.call(["rm", "-r", download_dir])
+
+    # Return the path to the saved file
+    return destination
+
+
+def one_google_image_per_page(page_doc, page_number, output_dir):
+    nouns = []
+
+    for chunk in page_doc.noun_chunks:
+        noun = chunk.root
+
+        if noun.lemma_ != "-PRON-":
+            nouns.append(noun.lemma_)
+
+    # Download image
+    print("Downloading image...")
+    keywords = " ".join(nouns)
+    image_path = google_image_search(keywords, "{0}".format(page_number), output_dir)
+
+    # Return image path
+    return image_path
+
+
+def multiple_google_images_per_page(page_doc, page_number, output_dir):
+    nouns = {}
+
+    for i, chunk in enumerate(page_doc.noun_chunks):
+        # Get noun
+        noun = chunk.root
+        noun_text = noun.lemma_
+
+        if noun_text == "-PRON-":
+            continue
+
+        # Download image
+        print("Downloading image...")
+        keywords = chunk.text
+        output_file_name = "{0}_{1}".format(page_number, i)
+        image_path = google_image_search(keywords, output_file_name, output_dir)
+
+        # Save noun and the path to the image
+        nouns[noun_text] = image_path
+
+    # Return the nouns and associated images for a page
+    return nouns
+
+
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
 def stylize_image(input_img_path, output_img_path, model_path, upsample_method='resize', content_target_resize=1.0):
     print('Stylizing image...')
@@ -70,35 +136,14 @@ def illustrate(input_file, output_dir, style_model):
         print("Natural language processing...")
         page_doc = nlp(page)
 
-        nouns = []
+        #image_path = one_google_image_per_page(page_doc, i, output_dir)
 
-        for chunk in page_doc.noun_chunks:
-            noun = chunk.root
-
-            if noun.lemma_ != "-PRON-":
-                nouns.append(noun.lemma_)
-
-        # Download image
-        print("Downloading image...")
-        keywords = "{0}".format(" ".join(nouns))
-        subprocess.call(["googleimagesdownload", "-k", keywords, "-l", "1", "-o", output_dir, "-f", "jpg"])
-
-        # Move image to destination
-        temp_dir = os.path.join(output_dir, keywords)
-        temp = subprocess.check_output(["ls", temp_dir])[:-1]   # Throw away the \n character returned by ls
-        temp = temp.decode("utf-8")
-        filename, file_extension = os.path.splitext(temp)
-        full_file_path = os.path.join(temp_dir, temp)
-        destination = os.path.join(output_dir, "{0}".format(i) + file_extension)
-        subprocess.call(["mv", full_file_path, destination])
-
-        # Clear out the temporary folder
-        subprocess.call(["rm", "-r", temp_dir])
+        nounToImageMap = multiple_google_images_per_page(page_doc, i, os.path.join(output_dir, "page{0}".format(i)))
 
         # Stylize image
-        stylize_image(destination, destination, style_model)
-        #subprocess.call(["python", "stylize_image.py", "--input_img_path", destination, "--output_img_path",
-        #                "./out.jpg", "--model_path", "./models/starry_final.ckpt"])
+        #stylize_image(image_path, image_path, style_model)
+        #subprocess.call(["python", "stylize_image.py", "--input_img_path", image_path, "--output_img_path",
+        #                image_path, "--model_path", style_model])
 
 
 if __name__ == "__main__":
@@ -110,7 +155,7 @@ if __name__ == "__main__":
     parser.add_argument('--input-file', type=str, required=False, help='Path to the text file.',
                         default=os.path.join(os.path.dirname(__file__), '../data/peter_rabbit.txt'))
     parser.add_argument('--output-dir', type=str, required=False, help='Path to the output directory.',
-                        default=os.path.join(os.path.dirname(__file__), '../illustrated_books'))
+                        default=os.path.join(os.path.dirname(__file__), '../illustrated_books/peter_rabbit'))
     parser.add_argument('--style-model', type=str, required=False, help='Path to the style transfer model.',
                         default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/starry_final.ckpt'))
     args = parser.parse_args()

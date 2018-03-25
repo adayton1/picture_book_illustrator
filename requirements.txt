@@ -1,2 +1,4 @@
+google_images_download
 numpy
+spacy
 tensorflow-gpu>=1.5.0
