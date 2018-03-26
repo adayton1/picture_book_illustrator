@@ -1,4 +1,7 @@
+bs4
+cchardet
 google_images_download
+lxml
 numpy
 spacy
 tensorflow-gpu>=1.5.0
