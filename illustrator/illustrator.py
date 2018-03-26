@@ -1,19 +1,25 @@
 from __future__ import unicode_literals
 import codecs
 import os
-import shutil
 import subprocess
 import spacy
-
-import deps.scrapeImages as scrape_images
+import cv2
 
 import tensorflow as tf
 import numpy as np
-from deps.faststyle.im_transf_net import create_net
+#from deps.faststyle.im_transf_net import create_net
+import deps.faststyle.im_transf_net as im_transf_net
 import deps.faststyle.utils as utils
 
 # Load English model
 nlp = spacy.load('en_core_web_lg')
+
+standard_img_shape = (500, 500)
+
+# Create the graph.
+with tf.variable_scope('img_t_net'):
+    X = tf.placeholder(tf.float32, shape=(1, standard_img_shape[0], standard_img_shape[1], 3), name='input')
+    Y = im_transf_net.create_net(X, 'resize') # resize or deconv
 
 
 def read_file(input_file):
@@ -32,8 +38,8 @@ def google_image_search(keywords, output_file_name, output_dir):
 
     # Get the path to where the downloaded image was saved
     download_dir = os.path.join(output_dir, keywords)
-    downloaded_file_name = os.listdir(download_dir)[0]
-    # downloaded_file_name = downloaded_file_name.decode("utf-8")
+    downloaded_file_name = subprocess.check_output(["ls", download_dir])[:-1]  # Throw away the \n character returned by ls
+    downloaded_file_name = downloaded_file_name.decode("utf-8")
     downloaded_file_path = os.path.join(download_dir, downloaded_file_name)
 
     # Get the filename and extension
@@ -41,30 +47,10 @@ def google_image_search(keywords, output_file_name, output_dir):
 
     # Move to the destination
     destination = os.path.join(output_dir, output_file_name + file_extension)
-    shutil.move(downloaded_file_path, destination)
+    subprocess.call(["mv", downloaded_file_path, destination])
 
     # Clear out the temporary folder
-    os.rmdir(download_dir)
-
-    # Return the path to the saved file
-    return destination
-
-
-def scrape_google_images(keywords, output_file_name, output_dir, num_images=1):
-    # Download the first image corresponding to the keyword search
-    scrape_images.run(keywords, output_dir, num_images)
-
-    # Get the path to where the downloaded image was saved
-    downloaded_file_name = os.listdir(output_dir)[0]
-    # downloaded_file_name = downloaded_file_name.decode("utf-8")
-    downloaded_file_path = os.path.join(output_dir, downloaded_file_name)
-
-    # Get the filename and extension
-    filename, file_extension = os.path.splitext(downloaded_file_path)
-
-    # Move to the destination
-    destination = os.path.join(output_dir, output_file_name + file_extension)
-    shutil.move(downloaded_file_path, destination)
+    subprocess.call(["rm", "-r", download_dir])
 
     # Return the path to the saved file
     return destination
@@ -88,7 +74,8 @@ def one_google_image_per_page(page_doc, page_number, output_dir):
     return image_path
 
 
-def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, output_dir):
+def multiple_google_images_per_page(page_doc, page_number, output_dir):
+    nouns = {}
 
     for i, chunk in enumerate(page_doc.noun_chunks):
         # Get noun
@@ -98,66 +85,50 @@ def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, ou
         if noun_text == "-PRON-":
             continue
 
-        if noun_text not in noun_to_image_map:
-            # Download image
-            print("Downloading image...")
-            keywords = chunk.text
-            output_file_name = "{0}_{1}".format(page_number, i)
+        # Download image
+        print("Downloading image...")
+        keywords = chunk.text
+        output_file_name = "{0}_{1}".format(page_number, i)
+        image_path = google_image_search(keywords, output_file_name, output_dir)
 
-            image_path = scrape_google_images(keywords, output_file_name, output_dir, 1)
-
-            #image_path = google_image_search(keywords, output_file_name, output_dir)
-
-            # Save noun and the path to the image
-            noun_to_image_map[noun_text] = image_path
-        else:
-            print("Reusing noun")
+        # Save noun and the path to the image
+        nouns[noun_text] = image_path
 
     # Return the nouns and associated images for a page
-    return noun_to_image_map
+    return nouns
 
 
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
-def stylize_image(input_img_path, output_img_path, model_path, upsample_method='resize', content_target_resize=1.0):
+def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1.0):
     print('Stylizing image...')
 
     # Read + preprocess input image.
     img = utils.imread(input_img_path)
-    img = utils.imresize(img, content_target_resize)
+    #img = utils.imresize(img, content_target_resize)
+    orig_dim = img.shape
+    img = cv2.resize(img, standard_img_shape)
     img_4d = img[np.newaxis, :]
 
-    # Create the graph.
-    with tf.variable_scope('img_t_net'):
-        X = tf.placeholder(tf.float32, shape=img_4d.shape, name='input')
-        Y = create_net(X, upsample_method)
-
     # Saver used to restore the model to the session.
-    saver = tf.train.Saver()
-
-    # Filter the input image.
-    with tf.Session() as sess:
-        print('Loading up model...')
-        saver.restore(sess, model_path)
-        print('Evaluating...')
-        img_out = sess.run(Y, feed_dict={X: img_4d})
+    print('Evaluating...')
+    img_out = sess.run(Y, feed_dict={X: img_4d})
 
     # Postprocess + save the output image.
-    print('Saving image...')
+    print('sSaving image...')
     img_out = np.squeeze(img_out)
+    img_out = cv2.resize(img_out, orig_dim[:2])
     utils.imwrite(output_img_path, img_out)
 
     print('Done stylizing image.')
 
 
-def illustrate(input_file, output_dir, style_model):
+def illustrate(input_file, output_dir, sess):
 
     print("Reading input file...")
     text, pages = read_file(input_file)
 
     # Process the whole doc
     # doc = nlp(text)
-
-    noun_to_image_map = {}
 
     # Iterate through each page
     for i, page in enumerate(pages):
@@ -168,11 +139,12 @@ def illustrate(input_file, output_dir, style_model):
 
         image_path = one_google_image_per_page(page_doc, i, output_dir)
 
-        # noun_to_image_map = multiple_google_images_per_page(noun_to_image_map, page_doc, i,
-        #                                                     os.path.join(output_dir, "page{0}".format(i)))
+        #nounToImageMap = multiple_google_images_per_page(page_doc, i, os.path.join(output_dir, "page{0}".format(i)))
 
         # Stylize image
-        # stylize_image(image_path, image_path, style_model)
+        stylize_image(image_path, image_path, sess)
+        #subprocess.call(["python", "stylize_image.py", "--input_img_path", image_path, "--output_img_path",
+        #                image_path, "--model_path", style_model])
 
 
 if __name__ == "__main__":
@@ -186,11 +158,15 @@ if __name__ == "__main__":
     parser.add_argument('--output-dir', type=str, required=False, help='Path to the output directory.',
                         default=os.path.join(os.path.dirname(__file__), '../illustrated_books/peter_rabbit'))
     parser.add_argument('--style-model', type=str, required=False, help='Path to the style transfer model.',
-                        default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/starry_final.ckpt'))
+                        default=os.path.join(os.path.dirname(__file__), 'deps/faststyle/models/starry_final.ckpt'))
     args = parser.parse_args()
 
     input_file = os.path.abspath(args.input_file)
     output_dir = os.path.abspath(args.output_dir)
-    style_model = os.path.abspath(args.style_model)
+    model_path = os.path.abspath(args.style_model)
 
-    illustrate(input_file, output_dir, style_model)
+    # Filter the input image.
+    with tf.Session() as sess:
+        print('Loading up model...')
+        tf.train.Saver().restore(sess, model_path)
+        illustrate(input_file, output_dir, sess)
