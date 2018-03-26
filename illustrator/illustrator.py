@@ -1,8 +1,11 @@
 from __future__ import unicode_literals
 import codecs
 import os
+import shutil
 import subprocess
 import spacy
+
+import deps.scrapeImages as scrape_images
 
 import tensorflow as tf
 import numpy as np
@@ -29,8 +32,8 @@ def google_image_search(keywords, output_file_name, output_dir):
 
     # Get the path to where the downloaded image was saved
     download_dir = os.path.join(output_dir, keywords)
-    downloaded_file_name = subprocess.check_output(["ls", download_dir])[:-1]  # Throw away the \n character returned by ls
-    downloaded_file_name = downloaded_file_name.decode("utf-8")
+    downloaded_file_name = os.listdir(download_dir)[0]
+    # downloaded_file_name = downloaded_file_name.decode("utf-8")
     downloaded_file_path = os.path.join(download_dir, downloaded_file_name)
 
     # Get the filename and extension
@@ -38,10 +41,30 @@ def google_image_search(keywords, output_file_name, output_dir):
 
     # Move to the destination
     destination = os.path.join(output_dir, output_file_name + file_extension)
-    subprocess.call(["mv", downloaded_file_path, destination])
+    shutil.move(downloaded_file_path, destination)
 
     # Clear out the temporary folder
-    subprocess.call(["rm", "-r", download_dir])
+    os.rmdir(download_dir)
+
+    # Return the path to the saved file
+    return destination
+
+
+def scrape_google_images(keywords, output_file_name, output_dir, num_images=1):
+    # Download the first image corresponding to the keyword search
+    scrape_images.run(keywords, output_dir, num_images)
+
+    # Get the path to where the downloaded image was saved
+    downloaded_file_name = os.listdir(output_dir)[0]
+    # downloaded_file_name = downloaded_file_name.decode("utf-8")
+    downloaded_file_path = os.path.join(output_dir, downloaded_file_name)
+
+    # Get the filename and extension
+    filename, file_extension = os.path.splitext(downloaded_file_path)
+
+    # Move to the destination
+    destination = os.path.join(output_dir, output_file_name + file_extension)
+    shutil.move(downloaded_file_path, destination)
 
     # Return the path to the saved file
     return destination
@@ -65,8 +88,7 @@ def one_google_image_per_page(page_doc, page_number, output_dir):
     return image_path
 
 
-def multiple_google_images_per_page(page_doc, page_number, output_dir):
-    nouns = {}
+def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, output_dir):
 
     for i, chunk in enumerate(page_doc.noun_chunks):
         # Get noun
@@ -76,17 +98,23 @@ def multiple_google_images_per_page(page_doc, page_number, output_dir):
         if noun_text == "-PRON-":
             continue
 
-        # Download image
-        print("Downloading image...")
-        keywords = chunk.text
-        output_file_name = "{0}_{1}".format(page_number, i)
-        image_path = google_image_search(keywords, output_file_name, output_dir)
+        if noun_text not in noun_to_image_map:
+            # Download image
+            print("Downloading image...")
+            keywords = chunk.text
+            output_file_name = "{0}_{1}".format(page_number, i)
 
-        # Save noun and the path to the image
-        nouns[noun_text] = image_path
+            image_path = scrape_google_images(keywords, output_file_name, output_dir, 1)
+
+            #image_path = google_image_search(keywords, output_file_name, output_dir)
+
+            # Save noun and the path to the image
+            noun_to_image_map[noun_text] = image_path
+        else:
+            print("Reusing noun")
 
     # Return the nouns and associated images for a page
-    return nouns
+    return noun_to_image_map
 
 
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
@@ -129,6 +157,8 @@ def illustrate(input_file, output_dir, style_model):
     # Process the whole doc
     # doc = nlp(text)
 
+    noun_to_image_map = {}
+
     # Iterate through each page
     for i, page in enumerate(pages):
         print("\n\nIllustrating page {0}...".format(i))
@@ -136,14 +166,13 @@ def illustrate(input_file, output_dir, style_model):
         print("Natural language processing...")
         page_doc = nlp(page)
 
-        #image_path = one_google_image_per_page(page_doc, i, output_dir)
+        image_path = one_google_image_per_page(page_doc, i, output_dir)
 
-        nounToImageMap = multiple_google_images_per_page(page_doc, i, os.path.join(output_dir, "page{0}".format(i)))
+        # noun_to_image_map = multiple_google_images_per_page(noun_to_image_map, page_doc, i,
+        #                                                     os.path.join(output_dir, "page{0}".format(i)))
 
         # Stylize image
-        #stylize_image(image_path, image_path, style_model)
-        #subprocess.call(["python", "stylize_image.py", "--input_img_path", image_path, "--output_img_path",
-        #                image_path, "--model_path", style_model])
+        # stylize_image(image_path, image_path, style_model)
 
 
 if __name__ == "__main__":
