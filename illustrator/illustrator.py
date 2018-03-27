@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import codecs
+import cv2
 import os
 import shutil
 import subprocess
@@ -14,6 +15,13 @@ import deps.faststyle.utils as utils
 
 # Load English model
 nlp = spacy.load('en_core_web_lg')
+
+standard_img_shape = (500, 500)
+
+# Create the graph.
+with tf.variable_scope('img_t_net'):
+    X = tf.placeholder(tf.float32, shape=(1, standard_img_shape[0], standard_img_shape[1], 3), name='input')
+    Y = create_net(X, 'resize') # resize or deconv
 
 
 def read_file(input_file):
@@ -118,38 +126,29 @@ def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, ou
 
 
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
-def stylize_image(input_img_path, output_img_path, model_path, upsample_method='resize', content_target_resize=1.0):
+def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1.0):
     print('Stylizing image...')
 
     # Read + preprocess input image.
     img = utils.imread(input_img_path)
     img = utils.imresize(img, content_target_resize)
+    orig_dim = img.shape
+    img = cv2.resize(img, standard_img_shape)
     img_4d = img[np.newaxis, :]
 
-    # Create the graph.
-    with tf.variable_scope('img_t_net'):
-        X = tf.placeholder(tf.float32, shape=img_4d.shape, name='input')
-        Y = create_net(X, upsample_method)
-
-    # Saver used to restore the model to the session.
-    saver = tf.train.Saver()
-
-    # Filter the input image.
-    with tf.Session() as sess:
-        print('Loading up model...')
-        saver.restore(sess, model_path)
-        print('Evaluating...')
-        img_out = sess.run(Y, feed_dict={X: img_4d})
+    print('Evaluating...')
+    img_out = sess.run(Y, feed_dict={X: img_4d})
 
     # Postprocess + save the output image.
     print('Saving image...')
     img_out = np.squeeze(img_out)
+    img_out = cv2.resize(img_out, orig_dim[:2])
     utils.imwrite(output_img_path, img_out)
 
     print('Done stylizing image.')
 
 
-def illustrate(input_file, output_dir, style_model):
+def illustrate(input_file, output_dir, sess):
 
     print("Reading input file...")
     text, pages = read_file(input_file)
@@ -172,7 +171,7 @@ def illustrate(input_file, output_dir, style_model):
         #                                                     os.path.join(output_dir, "page{0}".format(i)))
 
         # Stylize image
-        # stylize_image(image_path, image_path, style_model)
+        stylize_image(image_path, image_path, sess)
 
 
 if __name__ == "__main__":
@@ -191,6 +190,10 @@ if __name__ == "__main__":
 
     input_file = os.path.abspath(args.input_file)
     output_dir = os.path.abspath(args.output_dir)
-    style_model = os.path.abspath(args.style_model)
+    model_path = os.path.abspath(args.style_model)
 
-    illustrate(input_file, output_dir, style_model)
+    # Filter the input image.
+    with tf.Session() as sess:
+        print('Loading up model...')
+        tf.train.Saver().restore(sess, model_path)
+        illustrate(input_file, output_dir, sess)

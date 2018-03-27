@@ -1,5 +1,6 @@
 bs4
 cchardet
+cv2
 google_images_download
 lxml
 numpy
