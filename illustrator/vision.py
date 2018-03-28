@@ -1,11 +1,13 @@
 import tensorflow as tf
 import tensornets as nets
+from tensornets.datasets import voc
 
 
 class ObjectDetector(object):
-	def __init__(self, inputs=tf.placeholder(tf.float32, [None, 512, 512, 3])):
+	def __init__(self, inputs=tf.placeholder(tf.float32, [None, 512, 512, 3]), classnames=voc.classnames):
 		self.inputs = inputs
 		self.model = nets.YOLOv2(self.inputs, nets.Darknet19)
+		self.classnames = classnames
 
 	def __enter__(self):
 		self.sess = tf.Session()
@@ -17,7 +19,8 @@ class ObjectDetector(object):
 
 	def compute_bounding_boxes(self, image):
 		preds = self.sess.run(self.model, {self.inputs: self.model.preprocess(image)})
-		return self.model.get_boxes(preds, image.shape[1:3])
+		boxes = self.model.get_boxes(preds, image.shape[1:3])
+		return {self.classnames[i]: g for i, g in enumerate(boxes)}
 
 	def load_image(self, *args, **kwargs):
 		if kwargs.get('target_size') is None and kwargs.get('crop_size') is None:
@@ -28,7 +31,6 @@ class ObjectDetector(object):
 if __name__ == '__main__':
 	import random
 	import sys
-	from tensornets.datasets import voc
 	import numpy as np
 	import matplotlib
 	import matplotlib.pyplot as plt
@@ -49,9 +51,8 @@ if __name__ == '__main__':
 			boxes = detector.compute_bounding_boxes(image)
 
 			plt.imshow(image[0].astype(np.uint8))
-			for i, box_group in enumerate(boxes):
+			for label, box_group in boxes.items():
 				color = get_unused_color()
-				label = voc.classnames[i]
 				for box in box_group:
 					plt.gca().add_patch(
 					    plt.Rectangle(
