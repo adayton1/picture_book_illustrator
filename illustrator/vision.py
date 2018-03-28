@@ -26,18 +26,43 @@ class ObjectDetector(object):
 
 
 if __name__ == '__main__':
+	import random
+	import sys
 	from tensornets.datasets import voc
 	import numpy as np
+	import matplotlib
 	import matplotlib.pyplot as plt
 
+	colors = list(matplotlib.colors.cnames.keys())
+	used_colors = []
+
+	def get_unused_color():
+		color = random.choice(colors)
+		while color in used_colors:
+			color = random.choice(colors)
+		used_colors.append(color)
+		return color
+
 	with ObjectDetector() as detector:
-		image = detector.load_image('data/cat.png')
-		boxes = detector.compute_bounding_boxes(image)
+		for path in sys.argv[1:]:
+			image = detector.load_image(path)
+			boxes = detector.compute_bounding_boxes(image)
 
-		print("%s: %s" % (voc.classnames[7], boxes[7][0]))  # 7 is cat
-
-		box = boxes[7][0]
-		plt.imshow(image[0].astype(np.uint8))
-		plt.gca().add_patch(
-		    plt.Rectangle((box[0], box[1]), box[2] - box[0], box[3] - box[1], fill=False, edgecolor='r', linewidth=2))
-		plt.show()
+			plt.imshow(image[0].astype(np.uint8))
+			for i, box_group in enumerate(boxes):
+				color = get_unused_color()
+				label = voc.classnames[i]
+				for box in box_group:
+					plt.gca().add_patch(
+					    plt.Rectangle(
+					        (box[0], box[1]),
+					        box[2] - box[0],
+					        box[3] - box[1],
+					        color=color,
+					        label=label,
+					        fill=False,
+					        linewidth=2))
+					label = None
+			plt.legend()
+			plt.show()
+			used_colors = []
