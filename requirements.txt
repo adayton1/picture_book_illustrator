@@ -4,5 +4,6 @@ cv2
 google_images_download
 lxml
 numpy
+pillow
 spacy
 tensorflow-gpu>=1.5.0

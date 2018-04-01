@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 import codecs
 import cv2
 import os
+import PIL
+from PIL import Image, ImageDraw, ImageFont
 import shutil
 import subprocess
 import spacy
@@ -148,6 +150,24 @@ def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1
     print('Done stylizing image.')
 
 
+def add_text_to_image(input_img_path, text):
+    img = Image.open(input_img_path)
+    width, height = img.size
+
+    story_text_img = Image.new('RGB', (width, 50), color="white")
+
+    #fnt = ImageFont.truetype('/Library/Fonts/Arial.ttf', 15)
+    d = ImageDraw.Draw(story_text_img)
+    #d.text((10, 10), "Hello world", font=fnt, fill=(255, 255, 0))
+    d.text((10, 10), text, fill="black")
+
+    # Adapted from https://stackoverflow.com/questions/30227466/combine-several-images-horizontally-with-python
+    # for a vertical stacking it is simple: use vstack
+    image_with_text = np.vstack((np.asarray(img), np.asarray(story_text_img)))
+    image_with_text = PIL.Image.fromarray(image_with_text)
+    image_with_text.save(input_img_path)
+
+
 def illustrate(input_file, output_dir, sess):
 
     print("Reading input file...")
@@ -172,6 +192,8 @@ def illustrate(input_file, output_dir, sess):
 
         # Stylize image
         stylize_image(image_path, image_path, sess)
+
+        add_text_to_image(image_path, page)
 
 
 if __name__ == "__main__":
