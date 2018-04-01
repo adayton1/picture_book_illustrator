@@ -1,9 +1,11 @@
 bs4
 cchardet
-cv2
 google_images_download
 lxml
 numpy
 pillow
 spacy
 tensorflow-gpu>=1.5.0
+cython
+https://api.github.com/repos/thtrieu/darkflow/tarball
+https://api.github.com/repos/mwilliammyers/tensornets/tarball
