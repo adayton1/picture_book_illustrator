@@ -1,7 +1,9 @@
 bs4
 cchardet
 google_images_download
+img2pdf
 lxml
+natsort
 numpy
 pillow
 spacy

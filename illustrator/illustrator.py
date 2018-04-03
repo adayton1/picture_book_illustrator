@@ -1,8 +1,10 @@
 from __future__ import unicode_literals
 import codecs
 import cv2
+import glob
+import img2pdf
+from natsort import natsorted
 import os
-import PIL
 from PIL import Image, ImageDraw, ImageFont
 import shutil
 import subprocess
@@ -127,6 +129,14 @@ def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, ou
     return noun_to_image_map
 
 
+def pad_bottom_of_image(image_path, percentage=0.15):
+    img = cv2.imread(image_path)
+    height, width = img.shape[:2]
+    bottom_padding = int(percentage * height)
+    img = cv2.copyMakeBorder(img, 0, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+    cv2.imwrite(image_path, img)
+
+
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
 def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1.0):
     print('Stylizing image...')
@@ -150,22 +160,39 @@ def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1
     print('Done stylizing image.')
 
 
-def add_text_to_image(input_img_path, text):
+def add_text_to_image(input_img_path, text, percentage=0.15):
     img = Image.open(input_img_path)
     width, height = img.size
 
-    story_text_img = Image.new('RGB', (width, 50), color="white")
+    text_box_start_height = height / (1.0 + percentage)
+    text_box_height = height - text_box_start_height
+
+    text_start_width = int(0.05 * width)
+    text_start_height = int(text_box_start_height + (0.1 * text_box_height))
 
     #fnt = ImageFont.truetype('/Library/Fonts/Arial.ttf', 15)
-    d = ImageDraw.Draw(story_text_img)
-    #d.text((10, 10), "Hello world", font=fnt, fill=(255, 255, 0))
-    d.text((10, 10), text, fill="black")
+    font = ImageFont.load_default()
+    #text_width, text_height = font.getsize(text)
 
-    # Adapted from https://stackoverflow.com/questions/30227466/combine-several-images-horizontally-with-python
-    # for a vertical stacking it is simple: use vstack
-    image_with_text = np.vstack((np.asarray(img), np.asarray(story_text_img)))
-    image_with_text = PIL.Image.fromarray(image_with_text)
-    image_with_text.save(input_img_path)
+    d = ImageDraw.Draw(img)
+    d.text((text_start_width, text_start_height), text, font=font, fill="black")
+
+    img.save(input_img_path)
+
+
+def convert_images_to_pdf(output_dir):
+    # https://stackoverflow.com/questions/4568580/python-glob-multiple-filetypes
+    extensions = ('*.jpg', '*.jpeg', '*.png', '*.gif')  # the tuple of file types
+    image_paths = []
+
+    for extension in extensions:
+        image_paths.extend(glob.glob(os.path.join(output_dir, extension)))
+
+    image_paths = natsorted(image_paths)
+
+    # multiple inputs (variant 2)
+    with open(os.path.join(output_dir, "book.pdf"), "wb") as f:
+        f.write(img2pdf.convert(image_paths))
 
 
 def illustrate(input_file, output_dir, sess):
@@ -190,10 +217,17 @@ def illustrate(input_file, output_dir, sess):
         # noun_to_image_map = multiple_google_images_per_page(noun_to_image_map, page_doc, i,
         #                                                     os.path.join(output_dir, "page{0}".format(i)))
 
+        # Pad the image so there is room for text
+        pad_bottom_of_image(image_path)
+
         # Stylize image
         stylize_image(image_path, image_path, sess)
 
+        # Add the text of the page to the image
         add_text_to_image(image_path, page)
+
+    # Convert all the images to a pdf
+    convert_images_to_pdf(output_dir)
 
 
 if __name__ == "__main__":
