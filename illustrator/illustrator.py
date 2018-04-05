@@ -40,7 +40,16 @@ def read_file(input_file):
 
 def google_image_search(keywords, output_file_name, output_dir):
     # Download the first image corresponding to the keyword search
-    subprocess.call(["googleimagesdownload", "-k", keywords, "-l", "1", "-o", output_dir, "-f", "jpg"])
+    subprocess.call(["googleimagesdownload",
+                     "-k", keywords,
+                     "-l", "1",
+                     "-o", output_dir,
+                     "-f", "jpg",
+                     #"-r", "labled-for-noncommercial-reuse-with-modification",
+                     "-s", "medium",
+                     #"-a", "wide",
+                     #"-t", "clip-art",
+                     "-m"])
 
     # Get the path to where the downloaded image was saved
     download_dir = os.path.join(output_dir, keywords)
@@ -89,7 +98,10 @@ def one_google_image_per_page(page_doc, page_number, output_dir):
         noun = chunk.root
 
         if noun.lemma_ != "-PRON-":
-            nouns.append(noun.lemma_)
+            if noun.ent_type_ == "PERSON":
+                nouns.append(noun.ent_type_.lower())
+            else:
+                nouns.append(noun.lemma_)
 
     # Download image
     print("Downloading image...")
@@ -160,6 +172,35 @@ def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1
     print('Done stylizing image.')
 
 
+def split_text(text, max_width, font):
+    width = font.getsize(text)[0]
+
+    if width > max_width:
+        multiline_text = list(text)
+
+        start_of_new_line = 0
+        last_space_index = 0
+
+        for i, char in enumerate(text):
+            if char == ' ':
+                current_width = font.getsize(text[start_of_new_line:i])[0]
+
+                if current_width > max_width:
+                    multiline_text[last_space_index] = '\n'
+                    start_of_new_line = last_space_index + 1
+
+                    remaining_width = font.getsize(text[start_of_new_line:])[0]
+
+                    if remaining_width <= max_width:
+                        return ''.join(multiline_text)
+                else:
+                    last_space_index = i
+
+        return ''.join(multiline_text)
+    else:
+        return text
+
+
 def add_text_to_image(input_img_path, text, percentage=0.15):
     img = Image.open(input_img_path)
     width, height = img.size
@@ -172,10 +213,10 @@ def add_text_to_image(input_img_path, text, percentage=0.15):
 
     #fnt = ImageFont.truetype('/Library/Fonts/Arial.ttf', 15)
     font = ImageFont.load_default()
-    #text_width, text_height = font.getsize(text)
+    multiline_text = split_text(text, 0.9 * width, font)
 
     d = ImageDraw.Draw(img)
-    d.text((text_start_width, text_start_height), text, font=font, fill="black")
+    d.multiline_text((text_start_width, text_start_height), multiline_text, font=font, fill="black")
 
     img.save(input_img_path)
 
