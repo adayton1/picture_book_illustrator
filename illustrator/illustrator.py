@@ -2,13 +2,13 @@ from __future__ import unicode_literals
 import codecs
 import cv2
 import glob
+from google_images_download import google_images_download
 import img2pdf
 import matplotlib.font_manager
 from natsort import natsorted
 import os
 from PIL import Image, ImageDraw, ImageFont
 import shutil
-import subprocess
 import spacy
 
 import deps.scrapeImages as scrape_images
@@ -18,12 +18,16 @@ import numpy as np
 from deps.faststyle.im_transf_net import create_net
 import deps.faststyle.utils as utils
 
+# Module variables
+standard_img_shape = (500, 500)
+image_downloader = google_images_download.googleimagesdownload()
+
 # Load English model
+print('Loading nlp model...')
 nlp = spacy.load('en_core_web_lg')
 
-standard_img_shape = (500, 500)
-
 # Create the graph.
+print('Creating style transfer network...')
 with tf.variable_scope('img_t_net'):
     X = tf.placeholder(tf.float32, shape=(1, standard_img_shape[0], standard_img_shape[1], 3), name='input')
     Y = create_net(X, 'resize') # resize or deconv
@@ -69,17 +73,18 @@ def read_file(input_file):
 
 
 def google_image_search(keywords, output_file_name, output_dir):
+    image_downloader_arguments = {"keywords": keywords,
+                                  "output_directory": output_dir,
+                                  "limit": 1,
+                                  "format": "jpg",
+                                  "size": "medium",
+                                  #"aspect_ratio": "wide",
+                                  #"type": "clip-art",
+                                  #"usage_rights": "labled-for-noncommercial-reuse-with-modification",
+                                  "metadata": True}
+
     # Download the first image corresponding to the keyword search
-    subprocess.call(["googleimagesdownload",
-                     "-k", keywords,
-                     "-l", "1",
-                     "-o", output_dir,
-                     "-f", "jpg",
-                     #"-r", "labled-for-noncommercial-reuse-with-modification",
-                     "-s", "medium",
-                     #"-a", "wide",
-                     #"-t", "clip-art",
-                     "-m"])
+    image_downloader.download(image_downloader_arguments)
 
     # Get the path to where the downloaded image was saved
     download_dir = os.path.join(output_dir, keywords)
@@ -205,9 +210,6 @@ def wrap_text(text, max_width, font):
         return ''.join(multiline_text)
     else:
         return text
-
-
-
 
 
 def pad_bottom_of_image(img, min_padding, percentage=0.15):
