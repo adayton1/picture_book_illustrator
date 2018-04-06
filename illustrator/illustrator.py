@@ -217,11 +217,11 @@ def pad_bottom_of_image(img, min_padding, percentage=0.15):
 
 
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
-def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1.0):
+def stylize_image(img, sess, content_target_resize=1.0):
     print('Stylizing image...')
 
-    # Read + preprocess input image.
-    img = utils.imread(input_img_path)
+    # Preprocess input image.
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     img = utils.imresize(img, content_target_resize)
     orig_dim = img.shape
     img = cv2.resize(img, standard_img_shape)
@@ -238,9 +238,11 @@ def stylize_image(input_img_path, output_img_path, sess, content_target_resize=1
     # The resize function expects (width, height)
     new_dim = (orig_dim[1], orig_dim[0])
     img_out = cv2.resize(img_out, new_dim)
-    utils.imwrite(output_img_path, img_out)
+    img_out = cv2.cvtColor(img_out, cv2.COLOR_RGB2BGR)
 
     print('Done stylizing image.')
+
+    return img_out
 
 
 def compute_text_position(height, text_height, full_height, width):
@@ -296,25 +298,29 @@ def illustrate(input_file, output_dir, sess, font):
         # noun_to_image_map = multiple_google_images_per_page(noun_to_image_map, page_doc, i,
         #                                                     os.path.join(output_dir, "page{0}".format(i)))
 
-        # Read image
+        # Read image with PIL
         img = Image.open(image_path)
         width, height = img.size
 
-        # Wrap text
+        # Wrap text using PIL
         d = ImageDraw.Draw(img)
         multiline_text = wrap_text(page, int(0.9 * width), font)
         text_width, text_height = d.textsize(multiline_text, font=font)
 
-        # Pad the image so there is room for text
+        # Read the image with OpenCV
         img = cv2.imread(image_path)
+
+        # Pad the image with OpenCV so there is room for text
         img = pad_bottom_of_image(img, int(1.15 * text_height))
         full_height = img.shape[0]
+
+        # Stylize image with OpenCV
+        img = stylize_image(img, sess)
+
+        # Save the image with OpenCV
         cv2.imwrite(image_path, img)
 
-        # Stylize image
-        stylize_image(image_path, image_path, sess)
-
-        # Add the text of the page to the image
+        # Add the text of the page to the image using PIL
         text_position = compute_text_position(height, text_height, full_height, width)
         add_text_to_image(image_path, multiline_text, text_position, font)
 
