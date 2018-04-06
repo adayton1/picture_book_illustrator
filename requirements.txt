@@ -3,6 +3,7 @@ cchardet
 google_images_download
 img2pdf
 lxml
+matplotlib
 natsort
 numpy
 pillow
