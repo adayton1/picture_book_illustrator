@@ -177,39 +177,36 @@ def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, ou
 
 
 def wrap_text(text, max_width, font):
-    # TODO: Make this a binary search
-
-    width = font.getsize(text)[0]
-
-    if width > max_width:
+    if font.getsize(text)[0] < max_width:
+        return text
+    else:
         multiline_text = list(text)
 
         start_of_new_line = 0
-        last_space_index = 0
 
-        for i, char in enumerate(text):
-            if char == ' ':
-                current_width = font.getsize(text[start_of_new_line:i])[0]
+        while font.getsize(text[start_of_new_line:])[0] > max_width:
+            a = start_of_new_line
+            b = len(text) - 1
 
-                if current_width > max_width:
-                    multiline_text[last_space_index] = '\n'
-                    start_of_new_line = last_space_index + 1
+            while (b - a) > 1:
+                c = (a + b) // 2
+                current_width = font.getsize(text[start_of_new_line:(c + 1)])[0]
 
-                    remaining_width = font.getsize(text[start_of_new_line:])[0]
+                if current_width <= max_width:
+                    a = c
 
-                    if remaining_width <= max_width:
-                        return ''.join(multiline_text)
+                    if current_width == max_width:
+                        break
                 else:
-                    last_space_index = i
+                    b = c
 
-        current_width = font.getsize(text[start_of_new_line:])[0]
+            while text[a] != ' ':
+                a -= 1
 
-        if current_width > max_width:
-            multiline_text[last_space_index] = '\n'
+            multiline_text[a] = '\n'
+            start_of_new_line = a + 1
 
         return ''.join(multiline_text)
-    else:
-        return text
 
 
 def pad_bottom_of_image(img, min_padding, percentage=0.15):
