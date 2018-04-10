@@ -1,6 +1,64 @@
+import pathlib
+import sys
+
 import tensorflow as tf
 import tensornets as nets
 from tensornets.datasets import voc
+
+project_root = pathlib.Path(__file__).resolve().parent.parent
+# HACK
+sys.path.append(str(project_root.joinpath('deps/tensorflow_models/research/im2txt').resolve()))
+from im2txt import configuration
+from im2txt import inference_wrapper
+from im2txt.inference_utils import caption_generator
+from im2txt.inference_utils import vocabulary
+
+tf.logging.set_verbosity(tf.logging.WARN)
+
+
+class ImageCaptioner(object):
+	"""Generate captions for images using default beam search parameters."""
+
+	def __init__(self, checkpoint_path=None, vocab_file=None):
+		model_dir = project_root.joinpath('deps/Pretrained-Show-and-Tell-model')
+		if checkpoint_path is None:
+			checkpoint_path = str(model_dir.joinpath('model.ckpt-2000000'))
+
+		if vocab_file is None:
+			vocab_file = str(model_dir.joinpath('word_counts.txt'))
+
+		# Build the inference graph.
+		g = tf.Graph()
+		with g.as_default():
+			model = inference_wrapper.InferenceWrapper()
+			restore_fn = model.build_graph_from_config(configuration.ModelConfig(), checkpoint_path)
+		g.finalize()
+
+		# Create the vocabulary.
+		self.vocab = vocabulary.Vocabulary(vocab_file)
+
+		# TODO: add GPU support by fixing: Check failed: stream->parent()->GetConvolveAlgorithms( conv_parameters.ShouldIncludeWinogradNonfusedAlgo<T>(), &algorithms)
+		self.sess = tf.Session(graph=g, config=tf.ConfigProto(device_count={'GPU': 0}))
+
+		# Load the model from checkpoint.
+		restore_fn(self.sess)
+
+		# Prepare the caption generator. Here we are implicitly using the default
+		# beam search parameters. See caption_generator.py for a description of the
+		# available beam search parameters.
+		self.generator = caption_generator.CaptionGenerator(model, self.vocab)
+
+	def __enter__(self):
+		return self
+
+	def __exit__(self, exc_type, exc_val, exc_tb):
+		self.sess.close()
+
+	def generate(self, image_file):
+		captions = self.generator.beam_search(self.sess, tf.gfile.GFile(image_file, "rb").read())
+		# Ignore begin and end words.
+		sentence = [self.vocab.id_to_word(w) for w in captions[0].sentence[1:-1]]
+		return " ".join(sentence)
 
 
 class ObjectDetector(object):
