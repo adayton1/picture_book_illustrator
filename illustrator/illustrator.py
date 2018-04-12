@@ -4,6 +4,7 @@ import cv2
 import glob
 from google_images_download import google_images_download
 import img2pdf
+import math
 import matplotlib.font_manager
 from natsort import natsorted
 import os
@@ -11,6 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 import shutil
 import spacy
 
+import vision
 import deps.scrapeImages as scrape_images
 
 import tensorflow as tf
@@ -147,33 +149,140 @@ def one_google_image_per_page(page_doc, page_number, output_dir):
     return image_path
 
 
-def multiple_google_images_per_page(noun_to_image_map, page_doc, page_number, output_dir):
+def create_page_image(page_doc, noun_to_image_map, detector, page_number, output_dir):
+
+    nouns_dir = os.path.join(output_dir, 'nouns')
+
+    keywords = []
+    nouns = []
 
     for i, chunk in enumerate(page_doc.noun_chunks):
         # Get noun
-        noun = chunk.root
-        noun_text = noun.lemma_
+        noun_token = chunk.root
+        noun = noun_token.lemma_
 
-        if noun_text == "-PRON-":
+        if noun == "-PRON-":
             continue
 
-        if noun_text not in noun_to_image_map:
+        if noun_token.ent_type_ == "PERSON":
+            keywords.append(noun_token.ent_type_.lower())
+        else:
+            keywords.append(noun)
+
+        nouns.append(noun)
+
+        if noun not in noun_to_image_map:
             # Download image
             print("Downloading image...")
-            keywords = chunk.text
-            output_file_name = "{0}_{1}".format(page_number, i)
-
-            image_path = scrape_google_images(keywords, output_file_name, output_dir, 1)
-
-            #image_path = google_image_search(keywords, output_file_name, output_dir)
+            keyword_search = chunk.text
+            image_path = google_image_search(keyword_search, noun, nouns_dir)
 
             # Save noun and the path to the image
-            noun_to_image_map[noun_text] = image_path
+            noun_to_image_map[noun] = image_path
         else:
             print("Reusing noun")
 
+    new_image = combine_images(keywords, nouns, noun_to_image_map, detector, output_dir)
+    image_path = os.path.join(output_dir, '{0}.jpg'.format(page_number))
+    new_image.save(image_path)
+
     # Return the nouns and associated images for a page
-    return noun_to_image_map
+    return image_path, noun_to_image_map
+
+
+def combine_images(keywords, nouns, noun_to_image_map, detector, output_dir):
+    keyword_string = ' '.join(keywords)
+    image_path = google_image_search(keyword_string, "template", output_dir)
+    image = detector.load_image(image_path)
+    boxes = detector.compute_bounding_boxes(image)
+
+    reference_image = Image.open(image_path)
+
+    width, height = reference_image.size
+    width_ratio = width / 512
+    height_ratio = height / 512
+
+    if width < height:
+        new_width = height
+        new_height = height
+    else:
+        new_width = width
+        new_height = width
+
+    new_image = Image.new('RGB', (new_width, new_height), color='white')
+
+    x_offset = int((new_width - width) / 2.0)
+    y_offset = int((new_height - height) / 2.0)
+
+    for noun in nouns:
+        try:
+            noun_image = Image.open(noun_to_image_map[noun])
+        except:
+            continue
+
+        if noun in boxes and boxes[noun].size:
+            box = boxes[noun][0]
+
+            if box.size:
+                box[0] *= width_ratio
+                box[2] *= width_ratio
+                box[1] *= height_ratio
+                box[3] *= height_ratio
+
+                box_width = box[2] - box[0]
+                box_height = box[3] - box[1]
+                box_area = box_width * box_height
+                resized_image = resize_preserve_aspect_ratio_PIL(noun_image, box_area)
+                noun_image_width, noun_image_height = resized_image.size
+                additional_x_offset = int((box_width - noun_image_width) / 2.0)
+                additional_y_offset = int((box_height - noun_image_height) / 2.0)
+
+                upper_left_x = int(box[0] + x_offset + additional_x_offset)
+                upper_left_y = int(box[1] + y_offset + additional_y_offset)
+
+                new_image.paste(resized_image, box=(upper_left_x, upper_left_y))
+
+    final_image = new_image.resize((768, 768))
+
+    os.remove(image_path)
+    return final_image
+
+
+def expand_to_aspect_ratio(width, height, target_ratio=0.8):
+    ratio = width / height
+
+    if abs(target_ratio - ratio) < 1e-12:
+        return width, height
+    elif ratio < target_ratio:
+        width = height * target_ratio
+    else:
+        height = width * target_ratio
+
+    return int(width), int(height)
+
+
+# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+def resize_preserve_aspect_ratio_openCV(image, target_area):
+    current_height, current_width = image.shape[:2]
+    aspect_ratio = current_width / current_height
+
+    new_height = math.sqrt(target_area / aspect_ratio)
+    new_width = new_height * aspect_ratio
+
+    new_image = cv2.resize(image, (new_width, new_height))
+    return new_image
+
+
+# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+def resize_preserve_aspect_ratio_PIL(image, target_area):
+    current_width, current_height = image.size
+    aspect_ratio = current_width / current_height
+
+    new_height = math.sqrt(target_area / aspect_ratio)
+    new_width = new_height * aspect_ratio
+
+    new_image = image.resize((int(new_width), int(new_height)))
+    return new_image
 
 
 def wrap_text(text, max_width, font):
@@ -275,7 +384,7 @@ def convert_images_to_pdf(output_dir):
         f.write(img2pdf.convert(image_paths))
 
 
-def illustrate(input_file, output_dir, sess, font):
+def illustrate(input_file, output_dir, sess, detector, font):
 
     print("Reading input file...")
     text, pages = read_file(input_file)
@@ -292,10 +401,9 @@ def illustrate(input_file, output_dir, sess, font):
         print("Natural language processing...")
         page_doc = nlp(page)
 
-        image_path = one_google_image_per_page(page_doc, i, output_dir)
+        #image_path = one_google_image_per_page(page_doc, i, output_dir)
 
-        # noun_to_image_map = multiple_google_images_per_page(noun_to_image_map, page_doc, i,
-        #                                                     os.path.join(output_dir, "page{0}".format(i)))
+        image_path, noun_to_image_map = create_page_image(page_doc, noun_to_image_map, detector, i, output_dir)
 
         # Read image with PIL
         img = Image.open(image_path)
@@ -324,6 +432,8 @@ def illustrate(input_file, output_dir, sess, font):
         add_text_to_image(image_path, multiline_text, text_position, font)
 
     # Convert all the images to a pdf
+    nouns_dir = os.path.join(output_dir, 'nouns')
+    shutil.rmtree(nouns_dir, ignore_errors=True)
     convert_images_to_pdf(output_dir)
 
 
@@ -352,6 +462,9 @@ if __name__ == "__main__":
 
     # Filter the input image.
     with tf.Session() as sess:
-        print('Loading up model...')
+        print('Loading up style transfer model...')
         tf.train.Saver().restore(sess, model_path)
-        illustrate(input_file, output_dir, sess, font)
+
+        print('Loading object dection model...')
+        with vision.ObjectDetector() as detector:
+            illustrate(input_file, output_dir, sess, detector, font)
