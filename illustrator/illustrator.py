@@ -74,14 +74,32 @@ def read_file(input_file):
     return text, pages
 
 
-def google_image_search(keywords, output_file_name, output_dir):
+# Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
+def make_white_transparent(image, threshold=235):
+    image = image.convert("RGBA")
+
+    pixdata = image.load()
+
+    width, height = image.size
+    for y in range(height):
+        for x in range(width):
+            pixel = pixdata[x, y]
+            average = sum(pixel[:3]) / float(len(pixel[:3]))
+
+            if average > threshold:
+                pixdata[x, y] = (255, 255, 255, 0)
+
+    return image
+
+
+def google_image_search(keywords, output_file_name, output_dir, type="line-drawing"):
     image_downloader_arguments = {"keywords": keywords,
                                   "output_directory": output_dir,
                                   "limit": 1,
                                   "format": "jpg",
                                   "size": "medium",
                                   #"aspect_ratio": "wide",
-                                  #"type": "clip-art",
+                                  "type": type,
                                   #"usage_rights": "labled-for-noncommercial-reuse-with-modification",
                                   "metadata": True}
 
@@ -192,7 +210,7 @@ def create_page_image(page_doc, noun_to_image_map, detector, page_number, output
 
 def combine_images(keywords, nouns, noun_to_image_map, detector, output_dir):
     keyword_string = ' '.join(keywords)
-    image_path = google_image_search(keyword_string, "template", output_dir)
+    image_path = google_image_search(keyword_string, "template", output_dir, type="photo")
     image = detector.load_image(image_path)
     boxes = detector.compute_bounding_boxes(image)
 
@@ -233,6 +251,7 @@ def combine_images(keywords, nouns, noun_to_image_map, detector, output_dir):
                 box_height = box[3] - box[1]
                 box_area = box_width * box_height
                 resized_image = resize_preserve_aspect_ratio_PIL(noun_image, box_area)
+                resized_image = make_white_transparent(resized_image)
                 noun_image_width, noun_image_height = resized_image.size
                 additional_x_offset = int((box_width - noun_image_width) / 2.0)
                 additional_y_offset = int((box_height - noun_image_height) / 2.0)
@@ -240,7 +259,7 @@ def combine_images(keywords, nouns, noun_to_image_map, detector, output_dir):
                 upper_left_x = int(box[0] + x_offset + additional_x_offset)
                 upper_left_y = int(box[1] + y_offset + additional_y_offset)
 
-                new_image.paste(resized_image, box=(upper_left_x, upper_left_y))
+                new_image.paste(resized_image, box=(upper_left_x, upper_left_y), mask=resized_image)
 
     final_image = new_image.resize((768, 768))
 
@@ -318,7 +337,7 @@ def wrap_text(text, max_width, font):
         return ''.join(multiline_text)
 
 
-def pad_bottom_of_image(img, min_padding, percentage=0.15):
+def pad_bottom_of_image(img, min_padding, percentage=0.25):
     height, width = img.shape[:2]
     bottom_padding = max(min_padding, int(percentage * height))
     return cv2.copyMakeBorder(img, 0, bottom_padding, 0, 0, cv2.BORDER_CONSTANT, value=(255, 255, 255))
@@ -418,7 +437,7 @@ def illustrate(input_file, output_dir, sess, detector, font):
         img = cv2.imread(image_path)
 
         # Pad the image with OpenCV so there is room for text
-        img = pad_bottom_of_image(img, int(1.15 * text_height))
+        img = pad_bottom_of_image(img, int(1.25 * text_height))
         full_height = img.shape[0]
 
         # Stylize image with OpenCV
@@ -448,11 +467,11 @@ if __name__ == "__main__":
     parser.add_argument('--output-dir', type=str, required=False, help='Path to the output directory.',
                         default=os.path.join(os.path.dirname(__file__), '../illustrated_books/peter_rabbit'))
     parser.add_argument('--style-model', type=str, required=False, help='Path to the style transfer model.',
-                        default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/starry_final.ckpt'))
+                        default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/candy_final.ckpt'))
     parser.add_argument('--font', type=str, required=False, help='Font name.',
                         default='Times New Roman')
     parser.add_argument('--font-size', type=int, required=False, help='Font size.',
-                        default=16)
+                        default=18)
     args = parser.parse_args()
 
     input_file = os.path.abspath(args.input_file)
