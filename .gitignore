@@ -102,6 +102,7 @@ ENV/
 
 # Add additional files/directories here
 .idea
-.DS_Stoe
+.DS_Store
 checkpoints/
 logdir/
+
