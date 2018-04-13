@@ -19,10 +19,8 @@ class Stylizer(object):
             self.net = create_net(self.inputs, "resize")
 
     def __enter__(self):
-        with tf.variable_scope('img_t_net'):
-            self.sess = tf.Session()
-            tf.train.Saver().restore(self.sess, self.model_path)
-
+        self.sess = tf.Session()
+        tf.train.Saver().restore(self.sess, self.model_path)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):

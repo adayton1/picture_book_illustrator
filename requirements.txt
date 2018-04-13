@@ -1,6 +1,5 @@
 bs4
 cchardet
-google_images_download>=2.0.4
 img2pdf
 lxml
 matplotlib

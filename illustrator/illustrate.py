@@ -3,7 +3,6 @@ import codecs
 import cv2
 import errno
 import glob
-from google_images_download import google_images_download
 import img2pdf
 import math
 import matplotlib.font_manager
@@ -14,9 +13,9 @@ import random
 import shutil
 import spacy
 
+from deps import google_images_download
 import stylize
 import vision
-
 
 # Module variables
 image_downloader = google_images_download.googleimagesdownload()
@@ -25,7 +24,6 @@ page_height = 960
 
 image_width = 768
 image_height = 768
-
 
 
 def get_font(font_name=None, font_size=16):
@@ -80,56 +78,6 @@ def google_image_search(keywords, output_file_name, output_dir, limit=1, image_s
     if image_size:
         image_downloader_arguments["size"] = image_size
 
-    # Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
-    def make_white_transparent(image, threshold=235):
-        image = image.convert("RGBA")
-
-        pixdata = image.load()
-
-        width, height = image.size
-        for y in range(height):
-            for x in range(width):
-                pixel = pixdata[x, y]
-                average = sum(pixel[:3]) / float(len(pixel[:3]))
-
-                if average > threshold:
-                    pixdata[x, y] = (255, 255, 255, 0)
-
-        return image
-
-    def expand_to_aspect_ratio(width, height, target_ratio=0.8):
-        ratio = width / height
-
-        if abs(target_ratio - ratio) < 1e-12:
-            return width, height
-        elif ratio < target_ratio:
-            width = height * target_ratio
-        else:
-            height = width * target_ratio
-
-        return int(width), int(height)
-
-    # https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
-    def resize_preserve_aspect_ratio_openCV(image, target_area):
-        current_height, current_width = image.shape[:2]
-        aspect_ratio = current_width / current_height
-
-        new_height = math.sqrt(target_area / aspect_ratio)
-        new_width = new_height * aspect_ratio
-
-        new_image = cv2.resize(image, (new_width, new_height))
-        return new_image
-
-    # https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
-    def resize_preserve_aspect_ratio_PIL(image, target_area):
-        current_width, current_height = image.size
-        aspect_ratio = current_width / current_height
-
-        new_height = math.sqrt(target_area / aspect_ratio)
-        new_width = new_height * aspect_ratio
-
-        new_image = image.resize((int(new_width), int(new_height)))
-        return new_image
     # Download the images corresponding to the keyword search
     image_downloader.download(image_downloader_arguments)
 
