@@ -26,7 +26,6 @@ class ImageCaptioner(object):
 
 		if vocab_file is None:
 			vocab_file = str(model_dir.joinpath('word_counts.txt'))
-
 		# Build the inference graph.
 		g = tf.Graph()
 		with g.as_default():
@@ -54,11 +53,14 @@ class ImageCaptioner(object):
 	def __exit__(self, exc_type, exc_val, exc_tb):
 		self.sess.close()
 
-	def generate(self, image_file):
-		captions = self.generator.beam_search(self.sess, tf.gfile.GFile(image_file, "rb").read())
-		# Ignore begin and end words.
-		sentence = [self.vocab.id_to_word(w) for w in captions[0].sentence[1:-1]]
-		return " ".join(sentence)
+	def generate(self, image_files):
+		sentences = []
+		for image_file in image_files:
+			captions = self.generator.beam_search(self.sess, tf.gfile.GFile(image_file, "rb").read())
+			# Ignore begin and end words.
+			sentence = [self.vocab.id_to_word(w) for w in captions[0].sentence[1:-1]]
+			sentences.append(" ".join(sentence))
+		return sentences
 
 
 class ObjectDetector(object):
