@@ -570,6 +570,7 @@ def illustrate(input_file, output_dir, model_path, font, remove_downloads=False)
     nouns, images, template_images = find_images(text, pages, downloads_dir)
     image_paths = create_images(nouns, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
+    # TODO: Fix stylize image error
     # stylize_images(image_paths, model_path)
     add_text_to_images(image_paths, pages, font)
     convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
@@ -590,7 +591,7 @@ if __name__ == "__main__":
     parser.add_argument('--output-dir', type=str, required=False, help='Path to the output directory.',
                         default=os.path.join(os.path.dirname(__file__), '../illustrated_books/object_detection'))
     parser.add_argument('--style-model', type=str, required=False, help='Path to the style transfer model.',
-                        default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/candy_final.ckpt'))
+                        default=os.path.join(os.path.dirname(__file__), '../deps/faststyle/models/starry_final.ckpt'))
     parser.add_argument('--font', type=str, required=False, help='Font name.',
                         default='Times New Roman')
     parser.add_argument('--font-size', type=int, required=False, help='Font size.',
