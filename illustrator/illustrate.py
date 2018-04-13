@@ -67,35 +67,69 @@ def read_file(input_file):
     return text, pages
 
 
-# Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
-def make_white_transparent(image, threshold=235):
-    image = image.convert("RGBA")
-
-    pixdata = image.load()
-
-    width, height = image.size
-    for y in range(height):
-        for x in range(width):
-            pixel = pixdata[x, y]
-            average = sum(pixel[:3]) / float(len(pixel[:3]))
-
-            if average > threshold:
-                pixdata[x, y] = (255, 255, 255, 0)
-
-    return image
-
-
-def google_image_search(keywords, output_file_name, output_dir, limit=1, type="line-drawing"):
+def google_image_search(keywords, output_file_name, output_dir, limit=1, image_size=None, type="line-drawing"):
     image_downloader_arguments = {"keywords": keywords,
                                   "output_directory": output_dir,
                                   "limit": limit,
                                   "format": "jpg",
-                                  "size": "medium",
                                   #"aspect_ratio": "wide",
                                   "type": type,
                                   #"usage_rights": "labled-for-noncommercial-reuse-with-modification",
                                   "metadata": True}
 
+    if image_size:
+        image_downloader_arguments["size"] = image_size
+
+    # Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
+    def make_white_transparent(image, threshold=235):
+        image = image.convert("RGBA")
+
+        pixdata = image.load()
+
+        width, height = image.size
+        for y in range(height):
+            for x in range(width):
+                pixel = pixdata[x, y]
+                average = sum(pixel[:3]) / float(len(pixel[:3]))
+
+                if average > threshold:
+                    pixdata[x, y] = (255, 255, 255, 0)
+
+        return image
+
+    def expand_to_aspect_ratio(width, height, target_ratio=0.8):
+        ratio = width / height
+
+        if abs(target_ratio - ratio) < 1e-12:
+            return width, height
+        elif ratio < target_ratio:
+            width = height * target_ratio
+        else:
+            height = width * target_ratio
+
+        return int(width), int(height)
+
+    # https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+    def resize_preserve_aspect_ratio_openCV(image, target_area):
+        current_height, current_width = image.shape[:2]
+        aspect_ratio = current_width / current_height
+
+        new_height = math.sqrt(target_area / aspect_ratio)
+        new_width = new_height * aspect_ratio
+
+        new_image = cv2.resize(image, (new_width, new_height))
+        return new_image
+
+    # https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+    def resize_preserve_aspect_ratio_PIL(image, target_area):
+        current_width, current_height = image.size
+        aspect_ratio = current_width / current_height
+
+        new_height = math.sqrt(target_area / aspect_ratio)
+        new_width = new_height * aspect_ratio
+
+        new_image = image.resize((int(new_width), int(new_height)))
+        return new_image
     # Download the images corresponding to the keyword search
     image_downloader.download(image_downloader_arguments)
 
@@ -136,106 +170,6 @@ def google_image_search(keywords, output_file_name, output_dir, limit=1, type="l
 
         # Return the paths to the saved files
         return file_paths
-
-
-def combine_images(keywords, nouns, noun_to_image_map, detector, output_dir):
-    keyword_string = ' '.join(keywords)
-    image_path = google_image_search(keyword_string, "template", output_dir, type="photo")
-    image = detector.load_image(image_path)
-    boxes = detector.compute_bounding_boxes(image)
-
-    reference_image = Image.open(image_path)
-
-    width, height = reference_image.size
-    width_ratio = width / 512
-    height_ratio = height / 512
-
-    if width < height:
-        new_width = height
-        new_height = height
-    else:
-        new_width = width
-        new_height = width
-
-    new_image = Image.new('RGB', (new_width, new_height), color='white')
-
-    x_offset = int((new_width - width) / 2.0)
-    y_offset = int((new_height - height) / 2.0)
-
-    for noun in nouns:
-        try:
-            noun_image = Image.open(noun_to_image_map[noun])
-        except:
-            continue
-
-        if noun in boxes and boxes[noun].size:
-            box = boxes[noun][0]
-
-            if box.size:
-                box[0] *= width_ratio
-                box[2] *= width_ratio
-                box[1] *= height_ratio
-                box[3] *= height_ratio
-
-                box_width = box[2] - box[0]
-                box_height = box[3] - box[1]
-                box_area = box_width * box_height
-                resized_image = resize_preserve_aspect_ratio_PIL(noun_image, box_area)
-                resized_image = make_white_transparent(resized_image)
-                noun_image_width, noun_image_height = resized_image.size
-                additional_x_offset = int((box_width - noun_image_width) / 2.0)
-                additional_y_offset = int((box_height - noun_image_height) / 2.0)
-
-                upper_left_x = int(box[0] + x_offset + additional_x_offset)
-                upper_left_y = int(box[1] + y_offset + additional_y_offset)
-
-                new_image.paste(resized_image, box=(upper_left_x, upper_left_y), mask=resized_image)
-
-        else:
-            # Choose random box
-            pass
-
-    final_image = new_image.resize((image_width, image_height))
-
-    os.remove(image_path)
-    return final_image
-
-
-def expand_to_aspect_ratio(width, height, target_ratio=0.8):
-    ratio = width / height
-
-    if abs(target_ratio - ratio) < 1e-12:
-        return width, height
-    elif ratio < target_ratio:
-        width = height * target_ratio
-    else:
-        height = width * target_ratio
-
-    return int(width), int(height)
-
-
-# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
-def resize_preserve_aspect_ratio_openCV(image, target_area):
-    current_height, current_width = image.shape[:2]
-    aspect_ratio = current_width / current_height
-
-    new_height = math.sqrt(target_area / aspect_ratio)
-    new_width = new_height * aspect_ratio
-
-    new_image = cv2.resize(image, (new_width, new_height))
-    return new_image
-
-
-# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
-def resize_preserve_aspect_ratio_PIL(image, target_area):
-    current_width, current_height = image.size
-    aspect_ratio = current_width / current_height
-
-    new_height = math.sqrt(target_area / aspect_ratio)
-    new_width = new_height * aspect_ratio
-
-    new_image = image.resize((int(new_width), int(new_height)))
-    return new_image
 
 
 def find_noun_images(nlp, text, output_dir):
@@ -302,7 +236,8 @@ def find_template_images(page_doc, output_dir, num_images=5):
         nouns.append(noun)
 
     keyword_string = ' '.join(keywords)
-    file_paths = google_image_search(keyword_string, "template", output_dir, limit=num_images, type="photo")
+    file_paths = google_image_search(keyword_string, "template", output_dir,
+                                     limit=num_images, image_size="medium", type="photo")
 
     return nouns, file_paths
 
@@ -365,6 +300,61 @@ def find_images(text, pages, output_dir):
     return nouns, images, template_images
 
 
+# Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
+def make_white_transparent(image, threshold=235):
+    image = image.convert("RGBA")
+
+    pixdata = image.load()
+
+    width, height = image.size
+    for y in range(height):
+        for x in range(width):
+            pixel = pixdata[x, y]
+            average = sum(pixel[:3]) / float(len(pixel[:3]))
+
+            if average > threshold:
+                pixdata[x, y] = (255, 255, 255, 0)
+
+    return image
+
+
+def expand_to_aspect_ratio(width, height, target_ratio=0.8):
+    ratio = width / height
+
+    if abs(target_ratio - ratio) < 1e-12:
+        return width, height
+    elif ratio < target_ratio:
+        width = height * target_ratio
+    else:
+        height = width * target_ratio
+
+    return int(width), int(height)
+
+
+# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+def resize_preserve_aspect_ratio_openCV(image, target_area):
+    current_height, current_width = image.shape[:2]
+    aspect_ratio = current_width / current_height
+
+    new_height = math.sqrt(target_area / aspect_ratio)
+    new_width = new_height * aspect_ratio
+
+    new_image = cv2.resize(image, (new_width, new_height))
+    return new_image
+
+
+# https://stackoverflow.com/questions/33701929/how-to-resize-an-image-in-python-while-retaining-aspect-ratio-given-a-target-s/33702454
+def resize_preserve_aspect_ratio_PIL(image, target_area):
+    current_width, current_height = image.size
+    aspect_ratio = current_width / current_height
+
+    new_height = math.sqrt(target_area / aspect_ratio)
+    new_width = new_height * aspect_ratio
+
+    new_image = image.resize((int(new_width), int(new_height)))
+    return new_image
+
+
 def create_images(nouns, images, template_images, output_dir):
     created_images = []
 
@@ -409,6 +399,7 @@ def create_images(nouns, images, template_images, output_dir):
                 try:
                     noun_image = Image.open(images[noun])
                 except:
+                    print("Could not open image: {0}".format(images[noun]))
                     continue
 
                 if noun in boxes and boxes[noun].size:
@@ -436,7 +427,27 @@ def create_images(nouns, images, template_images, output_dir):
 
                 else:
                     # Choose random box
-                    pass
+                    box = [0] * 4
+
+                    box_width = random.randint(int(0.15 * new_width), int(0.30 * new_width))
+                    box_height = random.randint(int(0.15 * new_width), int(0.30 * new_height))
+                    box_area = box_width * box_height
+
+                    box[0] = random.randint(0, new_width - box_width)
+                    box[1] = random.randint(0, new_height - box_height)
+                    box[2] = box[0] + box_width
+                    box[3] = box[1] + box_width
+
+                    resized_image = resize_preserve_aspect_ratio_PIL(noun_image, box_area)
+                    resized_image = make_white_transparent(resized_image)
+                    noun_image_width, noun_image_height = resized_image.size
+                    additional_x_offset = int((box_width - noun_image_width) / 2.0)
+                    additional_y_offset = int((box_height - noun_image_height) / 2.0)
+
+                    upper_left_x = int(box[0] + additional_x_offset)
+                    upper_left_y = int(box[1] + additional_y_offset)
+
+                    new_image.paste(resized_image, box=(upper_left_x, upper_left_y), mask=resized_image)
 
             final_image = new_image.resize((768, 768))
             destination = os.path.join(pages_dir, "{0}.jpg".format(i))
