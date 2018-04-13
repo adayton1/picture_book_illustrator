@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 import codecs
 import cv2
+import errno
 import glob
 from google_images_download import google_images_download
 import img2pdf
@@ -237,22 +238,6 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def convert_images_to_pdf(output_dir):
-    print("Converting images to pdf...")
-    # https://stackoverflow.com/questions/4568580/python-glob-multiple-filetypes
-    extensions = ('*.jpg', '*.jpeg', '*.png', '*.gif')  # the tuple of file types
-    image_paths = []
-
-    for extension in extensions:
-        image_paths.extend(glob.glob(os.path.join(output_dir, extension)))
-
-    image_paths = natsorted(image_paths)
-
-    # multiple inputs (variant 2)
-    with open(os.path.join(output_dir, "book.pdf"), "wb") as f:
-        f.write(img2pdf.convert(image_paths))
-
-
 def find_noun_images(nlp, text, output_dir):
     images = {}
 
@@ -383,6 +368,16 @@ def find_images(text, pages, output_dir):
 def create_images(nouns, images, template_images, output_dir):
     created_images = []
 
+    pages_dir = os.path.join(output_dir, "pages")
+
+    try:
+        os.makedirs(pages_dir)
+    except OSError as exc:  # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(pages_dir):
+            pass
+        else:
+            raise
+
     # Load object dection model
     print("Loading object detection model...")
     with vision.ObjectDetector() as detector:
@@ -444,7 +439,7 @@ def create_images(nouns, images, template_images, output_dir):
                     pass
 
             final_image = new_image.resize((768, 768))
-            destination = os.path.join(output_dir, "{0}.jpg".format(i))
+            destination = os.path.join(pages_dir, "{0}.jpg".format(i))
             final_image.save(destination)
             created_images.append(destination)
             os.remove(template_path)
@@ -539,6 +534,22 @@ def add_text_to_images(image_paths, pages, font):
         img.save(image_path)
 
 
+def convert_images_to_pdf(input_dir, output_dir):
+    print("Converting images to pdf...")
+    # https://stackoverflow.com/questions/4568580/python-glob-multiple-filetypes
+    extensions = ('*.jpg', '*.jpeg', '*.png', '*.gif')  # the tuple of file types
+    image_paths = []
+
+    for extension in extensions:
+        image_paths.extend(glob.glob(os.path.join(input_dir, extension)))
+
+    image_paths = natsorted(image_paths)
+
+    # multiple inputs (variant 2)
+    with open(os.path.join(output_dir, "book.pdf"), "wb") as f:
+        f.write(img2pdf.convert(image_paths))
+
+
 def illustrate(input_file, output_dir, model_path, font, remove_downloads=False):
 
     print("Reading input file...")
@@ -550,7 +561,7 @@ def illustrate(input_file, output_dir, model_path, font, remove_downloads=False)
     pad_bottom_of_images(image_paths)
     # stylize_images(image_paths, model_path)
     add_text_to_images(image_paths, pages, font)
-    convert_images_to_pdf(output_dir)
+    convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
 
     # Remove individual images
     if remove_downloads:
