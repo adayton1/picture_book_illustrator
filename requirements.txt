@@ -1,14 +1,14 @@
+# tensorflow-gpu>=1.5.0
 bs4
 cchardet
+Cython
+https://api.github.com/repos/mwilliammyers/tensornets/tarball
+https://api.github.com/repos/thtrieu/darkflow/tarball
 img2pdf
 lxml
 matplotlib
 natsort
 numpy
+opencv-python
 pillow
 spacy
-opencv-python
-# tensorflow-gpu>=1.5.0
-cython
-https://api.github.com/repos/thtrieu/darkflow/tarball
-https://api.github.com/repos/mwilliammyers/tensornets/tarball

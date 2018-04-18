@@ -5,9 +5,6 @@ import tensorflow as tf
 import tensornets as nets
 from tensornets.datasets import voc
 
-project_root = pathlib.Path(__file__).resolve().parent.parent
-# HACK
-sys.path.append(str(project_root.joinpath('deps/tensorflow_models/research/im2txt').resolve()))
 from im2txt import configuration
 from im2txt import inference_wrapper
 from im2txt.inference_utils import caption_generator
@@ -19,8 +16,11 @@ tf.logging.set_verbosity(tf.logging.WARN)
 class ImageCaptioner(object):
 	"""Generate captions for images using default beam search parameters."""
 
-	def __init__(self, checkpoint_path=None, vocab_file=None):
-		model_dir = project_root.joinpath('deps/Pretrained-Show-and-Tell-model')
+	def __init__(
+	    self,
+	    checkpoint_path=None,
+	    vocab_file=None,
+	    model_dir=pathlib.Path(__file__).parent.parent.joinpath('deps/Pretrained-Show-and-Tell-model').resolve()):
 		if checkpoint_path is None:
 			checkpoint_path = str(model_dir.joinpath('model.ckpt-2000000'))
 
