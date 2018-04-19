@@ -7,6 +7,16 @@ import argparse
 import glob
 import cv2
 import os
+import sys
+
+# HACK
+project_root = os.path.abspath(os.path.join(sys.path[0], os.pardir))
+sys.path.append(project_root)
+
+# HACK
+def extend_syspath(paths):
+	for path in paths:
+		sys.path.append(os.path.abspath(os.path.join(project_root, path)))
 
 
 def auto_canny(image, sigma=0.33):
