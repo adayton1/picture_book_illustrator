@@ -118,6 +118,8 @@ class ObjectDetector(object):
         pass
 
     def compute_bounding_boxes(self, images):
+        if not isinstance(images, list):
+            images = [images]
         outputs = []
         with self.graph.as_default():
             with tf.Session() as sess:
