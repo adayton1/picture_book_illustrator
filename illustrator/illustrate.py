@@ -13,6 +13,9 @@ import random
 import shutil
 import spacy
 
+import utils
+utils.extend_syspath(['./'])  # HACK
+
 from deps import google_images_download
 import stylize
 import vision
