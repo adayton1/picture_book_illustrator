@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import defaultdict
 
 import numpy as np
 import tensorflow as tf
@@ -120,6 +121,7 @@ class ObjectDetector(object):
         outputs = []
         with self.graph.as_default():
             with tf.Session() as sess:
+                get_tensor_by_name = tf.get_default_graph().get_tensor_by_name
                 for image in images:
                     if isinstance(image, str):
                         image = self.load_image(image)
@@ -138,10 +140,8 @@ class ObjectDetector(object):
                     ]:
                         tensor_name = key + ':0'
                         if tensor_name in all_tensor_names:
-                            tensor_dict[key] = tf.get_default_graph(
-                            ).get_tensor_by_name(tensor_name)
-                    image_tensor = tf.get_default_graph().get_tensor_by_name(
-                        'image_tensor:0')
+                            tensor_dict[key] = get_tensor_by_name(tensor_name)
+                    image_tensor = get_tensor_by_name('image_tensor:0')
 
                     # Run inference
                     model_output = sess.run(
@@ -153,8 +153,15 @@ class ObjectDetector(object):
                     output = defaultdict(list)
                     classes = model_output['detection_classes'][0].astype(int)
                     for i in range(int(model_output['num_detections'][0])):
-                        output[self.category_index[classes[i]]['name']].append(
-                            model_output['detection_boxes'][0][i])
+                        box = model_output['detection_boxes'][0][i]
+                        # convert to normalized (pixel) coordinates
+                        # ymin, xmin, ymax, xmax = box
+                        box[0] *= image.shape[0]
+                        box[1] *= image.shape[1]
+                        box[2] *= image.shape[0]
+                        box[3] *= image.shape[1]
+                        key = self.category_index[classes[i]]['name']
+                        output[key].append(box.astype(int))
                     outputs.append(output)
         return outputs
 
@@ -166,8 +173,6 @@ class ObjectDetector(object):
 
 if __name__ == '__main__':
     import random
-    import sys
-    import numpy as np
     import matplotlib
     import matplotlib.pyplot as plt
 
@@ -184,21 +189,18 @@ if __name__ == '__main__':
     with ObjectDetector() as detector:
         boxes = detector.compute_bounding_boxes(sys.argv[1:])
         for i, box_output in enumerate(boxes):
-            image = Image.open(sys.argv[i + 1])
+            image = Image.open(sys.argv[i + 1])  # HACK
 
             plt.imshow(image)
             for label, box_group in box_output.items():
                 color = get_unused_color()
                 for box in box_group:
                     ymin, xmin, ymax, xmax = box
-                    (left, right, top, bottom) = (xmin, xmax, ymin, ymax)
-                    # draw.line([(left, top), (left, bottom), (right, bottom),
-                    #            (right, top), (left, top)], width=thickness, fill=color)
                     plt.gca().add_patch(
                         plt.Rectangle(
-                            (box[0], box[1]),
-                            box[2] - box[0],
-                            box[3] - box[1],
+                            (xmin, ymin),
+                            width=xmax - xmin,
+                            height=ymax - ymin,
                             color=color,
                             label=label,
                             fill=False,
