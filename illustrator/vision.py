@@ -49,8 +49,7 @@ class ImageCaptioner(object):
 		# Create the vocabulary.
 		self.vocab = vocabulary.Vocabulary(vocab_file)
 
-		# TODO: add GPU support by fixing: Check failed: stream->parent()->GetConvolveAlgorithms( conv_parameters.ShouldIncludeWinogradNonfusedAlgo<T>(), &algorithms)
-		self.sess = tf.Session(graph=g, config=tf.ConfigProto(device_count={'GPU': 0}))
+		self.sess = tf.Session(graph=g)
 
 		# Load the model from checkpoint.
 		restore_fn(self.sess)
@@ -114,8 +113,7 @@ class ObjectDetector(object):
 	def compute_bounding_boxes(self, images):
 		outputs = []
 		with self.graph.as_default():
-			# TODO: add GPU support by fixing: Check failed: stream->parent()->GetConvolveAlgorithms( conv_parameters.ShouldIncludeWinogradNonfusedAlgo<T>(), &algorithms)
-			with tf.Session(config=tf.ConfigProto(device_count={'GPU': 0})) as sess:
+			with tf.Session() as sess:
 				for image in images:
 					if isinstance(image, str):
 						image = self.load_image(image)
