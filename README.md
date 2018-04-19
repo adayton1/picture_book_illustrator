@@ -22,3 +22,15 @@ python3 -m venv venv && source venv/bin/activate
 ```
 make
 ```
+
+## usage
+
+1. optional:
+```
+source venv/bin/activate
+```
+
+1. run it:
+```
+python3 illustrator/illustrate.py
+```
