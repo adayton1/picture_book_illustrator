@@ -14,6 +14,7 @@ all: protobuf python cocoapi
 
 update:
 	git submodule update --merge
+	git lfs pull
 
 protobuf: update
 	$(install_cmd)
