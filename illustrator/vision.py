@@ -193,9 +193,8 @@ class ObjectDetector(object):
 
     def load_image(self, path):
         image = Image.open(path)
-        (im_width, im_height) = image.size
-        return np.array(image.getdata()).reshape((im_height, im_width,
-                                                  3)).astype(np.uint8)
+        (w, h) = image.size
+        return np.array(image.getdata()).reshape((h, w, 3)).astype(np.uint8)
 
 
 if __name__ == '__main__':
