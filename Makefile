@@ -4,7 +4,7 @@ ILLUSTRATOR_PYTHONPATH ?= $(PYTHONPATH):$(CURDIR):$(ILLUSTRATOR_TENSORFLOW_MODEL
 ILLUSTRATOR_MAIN ?= illustrator/illustrate.py
 
 ifeq ($(UNAME), Linux)
-	install_cmd = sudo apt install protobuf-compiler python-tk
+	install_cmd = sudo apt install protobuf-compiler
 endif
 ifeq ($(UNAME), Darwin)
 	install_cmd = brew install protobuf
