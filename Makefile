@@ -21,7 +21,7 @@ protobuf: update
 		protoc ./object_detection/protos/*.proto --python_out=.
 
 python:
-	pip3 install numpy Cython
+	pip3 install numpy Cython wheel
 	pip3 install -r requirements.txt
 	test -d $(shell python3 -c 'import site; print(list(filter(lambda x: "site-packages" in x, site.getsitepackages()))[0])')/en_core_web_lg || python3 -m spacy download en_core_web_lg
 
