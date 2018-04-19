@@ -13,6 +13,7 @@ import sys
 project_root = os.path.abspath(os.path.join(sys.path[0], os.pardir))
 sys.path.append(project_root)
 
+
 # HACK
 def extend_syspath(paths):
 	for path in paths:
@@ -70,7 +71,8 @@ def detect_edges_3(image):
 
 
 def convert_to_sketch(image):
-	grayscale_image, _ = cv2.pencilSketch(image, sigma_s=60, sigma_r=0.07, shade_factor=0.05)
+	grayscale_image, _ = cv2.pencilSketch(
+	    image, sigma_s=60, sigma_r=0.07, shade_factor=0.05)
 	return grayscale_image
 
 
@@ -120,8 +122,10 @@ def process_image(image_file_path, destination_dir, show_image):
 def main():
 	# construct the argument parse and parse the arguments
 	ap = argparse.ArgumentParser()
-	ap.add_argument("-i", "--images", required=True, help="path to input dataset of images")
-	ap.add_argument("-d", "--destination", required=True, help="path to save edge images")
+	ap.add_argument(
+	    "-i", "--images", required=True, help="path to input dataset of images")
+	ap.add_argument(
+	    "-d", "--destination", required=True, help="path to save edge images")
 	ap.add_argument("-s", "--show", action="store_true", help="show each image")
 	args = vars(ap.parse_args())
 

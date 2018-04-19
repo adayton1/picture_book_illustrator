@@ -60,21 +60,47 @@ import argparse
 from keras.applications import vgg19
 from keras import backend as K
 
-parser = argparse.ArgumentParser(description='Neural style transfer with Keras.')
-parser.add_argument('base_image_path', metavar='base', type=str,
-					help='Path to the image to transform.')
-parser.add_argument('style_reference_image_path', metavar='ref', type=str,
-					help='Path to the style reference image.')
-parser.add_argument('result_prefix', metavar='res_prefix', type=str,
-					help='Prefix for the saved results.')
-parser.add_argument('--iter', type=int, default=10, required=False,
-					help='Number of iterations to run.')
-parser.add_argument('--content_weight', type=float, default=0.025, required=False,
-					help='Content weight.')
-parser.add_argument('--style_weight', type=float, default=1.0, required=False,
-					help='Style weight.')
-parser.add_argument('--tv_weight', type=float, default=1.0, required=False,
-					help='Total Variation weight.')
+parser = argparse.ArgumentParser(
+    description='Neural style transfer with Keras.')
+parser.add_argument(
+    'base_image_path',
+    metavar='base',
+    type=str,
+    help='Path to the image to transform.')
+parser.add_argument(
+    'style_reference_image_path',
+    metavar='ref',
+    type=str,
+    help='Path to the style reference image.')
+parser.add_argument(
+    'result_prefix',
+    metavar='res_prefix',
+    type=str,
+    help='Prefix for the saved results.')
+parser.add_argument(
+    '--iter',
+    type=int,
+    default=10,
+    required=False,
+    help='Number of iterations to run.')
+parser.add_argument(
+    '--content_weight',
+    type=float,
+    default=0.025,
+    required=False,
+    help='Content weight.')
+parser.add_argument(
+    '--style_weight',
+    type=float,
+    default=1.0,
+    required=False,
+    help='Style weight.')
+parser.add_argument(
+    '--tv_weight',
+    type=float,
+    default=1.0,
+    required=False,
+    help='Total Variation weight.')
 
 args = parser.parse_args()
 base_image_path = args.base_image_path
@@ -91,7 +117,6 @@ content_weight = args.content_weight
 width, height = load_img(base_image_path).size
 img_nrows = 400
 img_ncols = int(width * img_nrows / height)
-
 
 # util function to open, resize and format pictures into appropriate tensors
 
@@ -134,19 +159,17 @@ else:
 	combination_image = K.placeholder((1, img_nrows, img_ncols, 3))
 
 # combine the 3 images into a single Keras tensor
-input_tensor = K.concatenate([base_image,
-							  style_reference_image,
-							  combination_image], axis=0)
+input_tensor = K.concatenate(
+    [base_image, style_reference_image, combination_image], axis=0)
 
 # build the VGG16 network with our 3 images as input
 # the model will be loaded with pre-trained ImageNet weights
-model = vgg19.VGG19(input_tensor=input_tensor,
-					weights='imagenet', include_top=False)
+model = vgg19.VGG19(
+    input_tensor=input_tensor, weights='imagenet', include_top=False)
 print('Model loaded.')
 
 # get the symbolic outputs of each "key" layer (we gave them unique names).
 outputs_dict = dict([(layer.name, layer.output) for layer in model.layers])
-
 
 # compute the neural style loss
 # first we need to define 4 util functions
@@ -178,7 +201,7 @@ def style_loss(style, combination):
 	C = gram_matrix(combination)
 	channels = 3
 	size = img_nrows * img_ncols
-	return K.sum(K.square(S - C)) / (4. * (channels ** 2) * (size ** 2))
+	return K.sum(K.square(S - C)) / (4. * (channels**2) * (size**2))
 
 
 # an auxiliary loss function
@@ -197,11 +220,15 @@ def content_loss(base, combination):
 def total_variation_loss(x):
 	assert K.ndim(x) == 4
 	if K.image_data_format() == 'channels_first':
-		a = K.square(x[:, :, :img_nrows - 1, :img_ncols - 1] - x[:, :, 1:, :img_ncols - 1])
-		b = K.square(x[:, :, :img_nrows - 1, :img_ncols - 1] - x[:, :, :img_nrows - 1, 1:])
+		a = K.square(x[:, :, :img_nrows - 1, :img_ncols - 1] -
+		             x[:, :, 1:, :img_ncols - 1])
+		b = K.square(x[:, :, :img_nrows - 1, :img_ncols - 1] -
+		             x[:, :, :img_nrows - 1, 1:])
 	else:
-		a = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] - x[:, 1:, :img_ncols - 1, :])
-		b = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] - x[:, :img_nrows - 1, 1:, :])
+		a = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] -
+		             x[:, 1:, :img_ncols - 1, :])
+		b = K.square(x[:, :img_nrows - 1, :img_ncols - 1, :] -
+		             x[:, :img_nrows - 1, 1:, :])
 	return K.sum(K.pow(a + b, 1.25))
 
 
@@ -210,12 +237,12 @@ loss = K.variable(0.)
 layer_features = outputs_dict['block5_conv2']
 base_image_features = layer_features[0, :, :, :]
 combination_features = layer_features[2, :, :, :]
-loss += content_weight * content_loss(base_image_features,
-									  combination_features)
+loss += content_weight * content_loss(base_image_features, combination_features)
 
-feature_layers = ['block1_conv1', 'block2_conv1',
-				  'block3_conv1', 'block4_conv1',
-				  'block5_conv1']
+feature_layers = [
+    'block1_conv1', 'block2_conv1', 'block3_conv1', 'block4_conv1',
+    'block5_conv1'
+]
 for layer_name in feature_layers:
 	layer_features = outputs_dict[layer_name]
 	style_reference_features = layer_features[1, :, :, :]
@@ -259,7 +286,6 @@ def eval_loss_and_grads(x):
 
 
 class Evaluator(object):
-
 	def __init__(self):
 		self.loss_value = None
 		self.grads_values = None
@@ -288,8 +314,8 @@ x = preprocess_image(base_image_path)
 for i in range(iterations):
 	print('Start of iteration', i)
 	start_time = time.time()
-	x, min_val, info = fmin_l_bfgs_b(evaluator.loss, x.flatten(),
-									 fprime=evaluator.grads, maxfun=20)
+	x, min_val, info = fmin_l_bfgs_b(
+	    evaluator.loss, x.flatten(), fprime=evaluator.grads, maxfun=20)
 	print('Current loss value:', min_val)
 	# save current generated image
 	img = deprocess_image(x.copy())

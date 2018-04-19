@@ -105,9 +105,11 @@ if __name__ == '__main__':
 	print(word_vector)
 
 	# Test for converting a list of words in a file to a list of word vectors
-	filename = os.path.join(os.path.dirname(__file__), '../data/quickdraw_categories.txt')
+	filename = os.path.join(
+	    os.path.dirname(__file__), '../data/quickdraw_categories.txt')
 	word_vectors = word_list_to_vectors(filename)
 
 	# Test for converting a file to a list of word vectors
-	filename = os.path.join(os.path.dirname(__file__), '../data/peter_rabbit.txt')
+	filename = os.path.join(
+	    os.path.dirname(__file__), '../data/peter_rabbit.txt')
 	word_vectors = file_to_vectors(filename)
