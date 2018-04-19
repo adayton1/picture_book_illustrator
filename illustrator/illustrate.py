@@ -256,29 +256,29 @@ def find_images(text, pages, output_dir):
 
     # TODO: Load image caption module
     # Loading image caption module
-    # print("Loading image caption model...")
-    # with vision.ImageCaptioner() as captioner:
+    print("Loading image caption model...")
+    with vision.ImageCaptioner() as captioner:
 
-    # Find nouns and keywords on each page
-    print("Downloading template images...")
-    for i, page in enumerate(pages):
-        doc = nlp(page)
+        # Find nouns and keywords on each page
+        print("Downloading template images...")
+        for i, page in enumerate(pages):
+            doc = nlp(page)
 
-        # TODO: Once image caption module is working, change num_images to 5 or 10
-        page_nouns, possible_template_images = find_template_images(
-            doc,
-            os.path.join(output_dir, "templates{0}".format(i)),
-            num_images=1)
-        nouns.append(page_nouns)
+            # TODO: Once image caption module is working, change num_images to 5 or 10
+            page_nouns, possible_template_images = find_template_images(
+                doc,
+                os.path.join(output_dir, "templates{0}".format(i)),
+                num_images=2)
+            nouns.append(page_nouns)
 
-        # TODO: Once image caption module is working, remove the following line and uncomment the line after that
-        best_template_path = possible_template_images
-        # best_template_path = find_best_image(page, possible_template_images, nlp, captioner)
+            # TODO: Once image caption module is working, remove the following line and uncomment the line after that
+            # best_template_path = possible_template_images
+            best_template_path = find_best_image(page, possible_template_images, nlp, captioner)
 
-        destination = os.path.join(output_dir, "template{0}".format(i))
-        shutil.copy(best_template_path, destination)
+            destination = os.path.join(output_dir, "template{0}".format(i))
+            shutil.copy(best_template_path, destination)
 
-        template_images.append(destination)
+            template_images.append(destination)
 
     return nouns, images, template_images
 
@@ -489,7 +489,8 @@ def stylize_images(image_paths, model_path):
         print("Applying style transfer to images...")
         for image_path in image_paths:
             img = cv2.imread(image_path)
-            stylizer.stylize_image(img)
+            img_out = stylizer.stylize_image(img)
+            cv2.imwrite(image_path, img_out)
 
 
 def wrap_text(text, max_width, font):
@@ -586,7 +587,7 @@ def illustrate(input_file,
     image_paths = create_images(nouns, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
     # TODO: Fix stylize image error
-    # stylize_images(image_paths, model_path)
+    stylize_images(image_paths, model_path)
     add_text_to_images(image_paths, pages, font)
     convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
 
