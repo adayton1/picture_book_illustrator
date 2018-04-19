@@ -131,86 +131,79 @@ class ObjectDetector(object):
                     }
                     tensor_dict = {}
                     for key in [
-                            'num_detections', 'detection_boxes',
-                            'detection_scores', 'detection_classes',
-                            'detection_masks'
+                            'num_detections',
+                            'detection_boxes',
+                            'detection_scores',
+                            'detection_classes',
                     ]:
                         tensor_name = key + ':0'
                         if tensor_name in all_tensor_names:
                             tensor_dict[key] = tf.get_default_graph(
                             ).get_tensor_by_name(tensor_name)
-                    if 'detection_masks' in tensor_dict:
-                        # The following processing is only for single image
-                        detection_boxes = tf.squeeze(
-                            tensor_dict['detection_boxes'], [0])
-                        detection_masks = tf.squeeze(
-                            tensor_dict['detection_masks'], [0])
-                        # Reframe is required to translate mask from box coordinates to image coordinates and fit the image size.
-                        real_num_detection = tf.cast(
-                            tensor_dict['num_detections'][0], tf.int32)
-                        detection_boxes = tf.slice(detection_boxes, [0, 0],
-                                                   [real_num_detection, -1])
-                        detection_masks = tf.slice(
-                            detection_masks, [0, 0, 0],
-                            [real_num_detection, -1, -1])
-                        detection_masks_reframed = utils_ops.reframe_box_masks_to_image_masks(
-                            detection_masks, detection_boxes, image.shape[0],
-                            image.shape[1])
-                        detection_masks_reframed = tf.cast(
-                            tf.greater(detection_masks_reframed, 0.5),
-                            tf.uint8)
-                        # Follow the convention by adding back the batch dimension
-                        tensor_dict['detection_masks'] = tf.expand_dims(
-                            detection_masks_reframed, 0)
                     image_tensor = tf.get_default_graph().get_tensor_by_name(
                         'image_tensor:0')
 
                     # Run inference
-                    output_dict = sess.run(
+                    model_output = sess.run(
                         tensor_dict,
                         feed_dict={
                             image_tensor: np.expand_dims(image, axis=0)
                         })
 
-                    # all outputs are float32 numpy arrays, so convert types as appropriate
-                    output_dict['num_detections'] = int(
-                        output_dict['num_detections'][0])
-                    output_dict['detection_classes'] = output_dict[
-                        'detection_classes'][0].astype(np.uint8)
-                    output_dict['detection_boxes'] = output_dict[
-                        'detection_boxes'][0]
-                    output_dict['detection_scores'] = output_dict[
-                        'detection_scores'][0]
-                    if 'detection_masks' in output_dict:
-                        output_dict['detection_masks'] = output_dict[
-                            'detection_masks'][0]
-                    outputs.append(output_dict)
+                    output = defaultdict(list)
+                    classes = model_output['detection_classes'][0].astype(int)
+                    for i in range(int(model_output['num_detections'][0])):
+                        output[self.category_index[classes[i]]['name']].append(
+                            model_output['detection_boxes'][0][i])
+                    outputs.append(output)
         return outputs
 
     def load_image(self, path):
         image = Image.open(path)
-        (im_width, im_height) = image.size
-        return np.array(image.getdata()).reshape((im_height, im_width,
-                                                  3)).astype(np.uint8)
+        (w, h) = image.size
+        return np.array(image.getdata()).reshape((h, w, 3)).astype(np.uint8)
 
 
 if __name__ == '__main__':
-    from matplotlib import pyplot as plt
-    from object_detection.utils import visualization_utils as vis_util
+    import random
+    import sys
+    import numpy as np
+    import matplotlib
+    import matplotlib.pyplot as plt
+
+    colors = list(matplotlib.colors.cnames.keys())
+    used_colors = []
+
+    def get_unused_color():
+        color = random.choice(colors)
+        while color in used_colors:
+            color = random.choice(colors)
+        used_colors.append(color)
+        return color
 
     with ObjectDetector() as detector:
-        for box in detector.compute_bounding_boxes(sys.argv[1:]):
-            print(box)
-            img = detector.load_image(sys.argv[1])
-            # Visualization of the results of a detection.
-            vis_util.visualize_boxes_and_labels_on_image_array(
-                img,
-                box['detection_boxes'],
-                box['detection_classes'],
-                box['detection_scores'],
-                detector.category_index,
-                instance_masks=box.get('detection_masks'),
-                use_normalized_coordinates=True,
-                line_thickness=8)
-            plt.figure(figsize=(12, 8))
-            plt.imshow(img)
+        boxes = detector.compute_bounding_boxes(sys.argv[1:])
+        for i, box_output in enumerate(boxes):
+            image = Image.open(sys.argv[i + 1])
+
+            plt.imshow(image)
+            for label, box_group in box_output.items():
+                color = get_unused_color()
+                for box in box_group:
+                    ymin, xmin, ymax, xmax = box
+                    (left, right, top, bottom) = (xmin, xmax, ymin, ymax)
+                    # draw.line([(left, top), (left, bottom), (right, bottom),
+                    #            (right, top), (left, top)], width=thickness, fill=color)
+                    plt.gca().add_patch(
+                        plt.Rectangle(
+                            (box[0], box[1]),
+                            box[2] - box[0],
+                            box[3] - box[1],
+                            color=color,
+                            label=label,
+                            fill=False,
+                            linewidth=2))
+                    label = None
+            plt.legend()
+            plt.show()
+            used_colors = []
