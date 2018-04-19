@@ -106,3 +106,4 @@ ENV/
 checkpoints/
 logdir/
 test.py
+illustrated_books/
