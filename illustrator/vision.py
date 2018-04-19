@@ -1,13 +1,9 @@
 import os
-import pathlib
 import sys
-import tarfile
-import zipfile
-from collections import defaultdict
-from io import StringIO
 
 import numpy as np
 import tensorflow as tf
+
 from PIL import Image
 
 # HACK
@@ -37,10 +33,10 @@ class ImageCaptioner(object):
             model_dir=os.path.join(utils.project_root,
                                    'deps/Pretrained-Show-and-Tell-model')):
         if checkpoint_path is None:
-            checkpoint_path = str(model_dir.joinpath('model.ckpt-2000000'))
+            checkpoint_path = os.path.join(model_dir, 'model.ckpt-2000000')
 
         if vocab_file is None:
-            vocab_file = str(model_dir.joinpath('word_counts.txt'))
+            vocab_file = os.path.join(model_dir, 'word_counts.txt')
         # Build the inference graph.
         g = tf.Graph()
         with g.as_default():
