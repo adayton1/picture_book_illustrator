@@ -223,7 +223,7 @@ def find_best_image(original_text, images, nlp, captioner):
     return random.choice(best_images)
 
 
-def find_images_for_page(text, nount_to_image_map, output_dir, nlp=None, captioner=None):
+def find_images_for_page(text, noun_to_image_map, output_dir, nlp=None, captioner=None):
     # Load English model
     if nlp is None:
         print("Loading nlp model...")
@@ -253,7 +253,7 @@ def find_images_for_page(text, nount_to_image_map, output_dir, nlp=None, caption
         nouns.append(noun)
 
         # Ignore nouns that have already been found
-        if noun in nount_to_image_map:
+        if noun in noun_to_image_map:
             continue
 
         # Download image
@@ -261,7 +261,7 @@ def find_images_for_page(text, nount_to_image_map, output_dir, nlp=None, caption
         image_path = google_image_search(keyword_search, noun, output_dir)
 
         # Save noun and the path to the image
-        nount_to_image_map[noun] = image_path
+        noun_to_image_map[noun] = image_path
 
     # Loading image caption module
     if captioner is None:
@@ -280,7 +280,7 @@ def find_images_for_page(text, nount_to_image_map, output_dir, nlp=None, caption
     best_template_path = find_best_image(text, possible_template_images,
                                          nlp, captioner)
 
-    return nouns, entities, nount_to_image_map, best_template_path
+    return nouns, entities, noun_to_image_map, best_template_path
 
 
 def find_images_for_full_text(text, pages, output_dir, nlp=None, captioner=None):
