@@ -33,6 +33,8 @@ class ImageCaptioner(object):
             vocab_file=None,
             model_dir=os.path.join(utils.project_root,
                                    'deps/Pretrained-Show-and-Tell-model')):
+        print('Loading ImageCaptioner model...')
+
         if checkpoint_path is None:
             checkpoint_path = os.path.join(model_dir, 'model.ckpt-2000000')
 
@@ -99,6 +101,7 @@ class ObjectDetector(object):
                 utils.project_root,
                 'deps/tensorflow_models/research/object_detection/data/mscoco_label_map.pbtxt'
             )):
+        print('Loading ObjectDetector model...')
         self.graph = tf.Graph()
         self.sess = tf.Session()
 

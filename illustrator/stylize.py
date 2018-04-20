@@ -1,4 +1,5 @@
 # Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
+import os
 
 import cv2
 import numpy as np
@@ -11,7 +12,12 @@ standard_image_size = (512, 512)
 
 
 class Stylizer(object):
-    def __init__(self, model_file_path, image_size=standard_image_size):
+    def __init__(self,
+                 model_file_path=os.path.join(
+                     os.path.dirname(__file__),
+                     '../deps/faststyle/models/starry_final.ckpt'),
+                 image_size=standard_image_size):
+        print("Loading stylizer model...")
         self.model_path = model_file_path
 
         with tf.variable_scope('img_t_net'):
@@ -21,14 +27,14 @@ class Stylizer(object):
                 name='input')
             self.net = create_net(self.inputs, "resize")
 
-    def __enter__(self):
         self.sess = tf.Session()
         tf.train.Saver().restore(self.sess, self.model_path)
+
+    def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        with tf.variable_scope('img_t_net'):
-            self.sess.close()
+        self.sess.close()
 
     def stylize_image(self, img, content_target_resize=1.0):
         print('Stylizing image...')

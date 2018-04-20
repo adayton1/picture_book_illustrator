@@ -244,10 +244,11 @@ def find_best_image(original_text, images, nlp, captioner):
     return random.choice(best_images)
 
 
-def find_images(text, pages, output_dir):
+def find_images(text, pages, output_dir, nlp=None, captioner=None):
     # Load English model
-    print("Loading nlp model...")
-    nlp = spacy.load("en_core_web_lg")
+    if nlp is None:
+        print("Loading nlp model...")
+        nlp = spacy.load("en_core_web_lg")
 
     # Find images of entities and nouns
     images = find_noun_images(nlp, text, os.path.join(output_dir, "nouns"))
@@ -256,28 +257,29 @@ def find_images(text, pages, output_dir):
     template_images = []
 
     # Loading image caption module
-    print("Loading image caption model...")
-    with vision.ImageCaptioner() as captioner:
+    if captioner is None:
+        captioner = vision.ImageCaptioner()
 
-        # Find nouns and keywords on each page
-        print("Downloading template images...")
-        for i, page in enumerate(pages):
-            doc = nlp(page)
+    # Find nouns and keywords on each page
+    print("Downloading template images...")
+    for i, page in enumerate(pages):
+        doc = nlp(page)
 
-            page_nouns, possible_template_images = find_template_images(
-                doc,
-                os.path.join(output_dir, "templates{0}".format(i)),
-                num_images=10)
-            nouns.append(page_nouns)
+        page_nouns, possible_template_images = find_template_images(
+            doc,
+            os.path.join(output_dir, "templates{0}".format(i)),
+            num_images=10)
+        nouns.append(page_nouns)
 
-            print("Captioning template images and choosing the best...")
-            best_template_path = find_best_image(page, possible_template_images, nlp, captioner)
+        print("Captioning template images and choosing the best...")
+        best_template_path = find_best_image(page, possible_template_images,
+                                             nlp, captioner)
 
-            # TODO: Add file extension to destination
-            destination = os.path.join(output_dir, "template{0}".format(i))
-            shutil.copy(best_template_path, destination)
+        # TODO: Add file extension to destination
+        destination = os.path.join(output_dir, "template{0}".format(i))
+        shutil.copy(best_template_path, destination)
 
-            template_images.append(destination)
+        template_images.append(destination)
 
     return nouns, images, template_images
 
@@ -337,7 +339,7 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_images(nouns, images, template_images, output_dir):
+def create_images(nouns, images, template_images, output_dir, detector=None):
     created_images = []
 
     pages_dir = os.path.join(output_dir, "pages")
@@ -351,86 +353,51 @@ def create_images(nouns, images, template_images, output_dir):
             raise
 
     # Load object dection model
-    print("Loading object detection model...")
-    with vision.ObjectDetector() as detector:
-        print("Creating images...")
-        for i, template_path in enumerate(template_images):
-            print("Creating image for page {0}...".format(i + 1))
-            template_image = detector.load_image(template_path)
-            boxes = detector.compute_bounding_boxes(template_image)
+    if detector is None:
+        detector = vision.ObjectDetector()
+    print("Creating images...")
+    for i, template_path in enumerate(template_images):
+        print("Creating image for page {0}...".format(i + 1))
+        template_image = detector.load_image(template_path)
+        boxes = detector.compute_bounding_boxes(template_image)
 
-            reference_image = Image.open(template_path)
+        reference_image = Image.open(template_path)
 
-            width, height = reference_image.size
-            width_ratio = width / 512
-            height_ratio = height / 512
+        width, height = reference_image.size
+        width_ratio = width / 512
+        height_ratio = height / 512
 
-            if width < height:
-                new_width = height
-                new_height = height
-            else:
-                new_width = width
-                new_height = width
+        if width < height:
+            new_width = height
+            new_height = height
+        else:
+            new_width = width
+            new_height = width
 
-            new_image = Image.new(
-                'RGB', (new_width, new_height), color='white')
+        new_image = Image.new('RGB', (new_width, new_height), color='white')
 
-            x_offset = int((new_width - width) / 2.0)
-            y_offset = int((new_height - height) / 2.0)
+        x_offset = int((new_width - width) / 2.0)
+        y_offset = int((new_height - height) / 2.0)
 
-            for noun in nouns[i]:
-                try:
-                    noun_image = Image.open(images[noun])
-                except:
-                    print("Could not open image: {0}".format(images[noun]))
-                    continue
+        for noun in nouns[i]:
+            try:
+                noun_image = Image.open(images[noun])
+            except:
+                print("Could not open image: {0}".format(images[noun]))
+                continue
 
-                if noun in boxes and boxes[noun].size:
-                    box = boxes[noun][0]
+            if noun in boxes and boxes[noun].size:
+                box = boxes[noun][0]
 
-                    if box.size:
-                        box[0] *= width_ratio
-                        box[2] *= width_ratio
-                        box[1] *= height_ratio
-                        box[3] *= height_ratio
+                if box.size:
+                    box[0] *= width_ratio
+                    box[2] *= width_ratio
+                    box[1] *= height_ratio
+                    box[3] *= height_ratio
 
-                        box_width = box[2] - box[0]
-                        box_height = box[3] - box[1]
-                        box_area = box_width * box_height
-                        resized_image = resize_preserve_aspect_ratio_PIL(
-                            noun_image, box_area)
-                        resized_image = make_white_transparent(resized_image)
-                        noun_image_width, noun_image_height = resized_image.size
-                        additional_x_offset = int(
-                            (box_width - noun_image_width) / 2.0)
-                        additional_y_offset = int(
-                            (box_height - noun_image_height) / 2.0)
-
-                        upper_left_x = int(
-                            box[0] + x_offset + additional_x_offset)
-                        upper_left_y = int(
-                            box[1] + y_offset + additional_y_offset)
-
-                        new_image.paste(
-                            resized_image,
-                            box=(upper_left_x, upper_left_y),
-                            mask=resized_image)
-
-                else:
-                    # Choose random box
-                    box = [0] * 4
-
-                    box_width = random.randint(
-                        int(0.15 * new_width), int(0.30 * new_width))
-                    box_height = random.randint(
-                        int(0.15 * new_width), int(0.30 * new_height))
+                    box_width = box[2] - box[0]
+                    box_height = box[3] - box[1]
                     box_area = box_width * box_height
-
-                    box[0] = random.randint(0, new_width - box_width)
-                    box[1] = random.randint(0, new_height - box_height)
-                    box[2] = box[0] + box_width
-                    box[3] = box[1] + box_width
-
                     resized_image = resize_preserve_aspect_ratio_PIL(
                         noun_image, box_area)
                     resized_image = make_white_transparent(resized_image)
@@ -440,19 +407,50 @@ def create_images(nouns, images, template_images, output_dir):
                     additional_y_offset = int(
                         (box_height - noun_image_height) / 2.0)
 
-                    upper_left_x = int(box[0] + additional_x_offset)
-                    upper_left_y = int(box[1] + additional_y_offset)
+                    upper_left_x = int(box[0] + x_offset + additional_x_offset)
+                    upper_left_y = int(box[1] + y_offset + additional_y_offset)
 
                     new_image.paste(
                         resized_image,
                         box=(upper_left_x, upper_left_y),
                         mask=resized_image)
 
-            final_image = new_image.resize((768, 768))
-            destination = os.path.join(pages_dir, "{0}.jpg".format(i))
-            final_image.save(destination)
-            created_images.append(destination)
-            os.remove(template_path)
+            else:
+                # Choose random box
+                box = [0] * 4
+
+                box_width = random.randint(
+                    int(0.15 * new_width), int(0.30 * new_width))
+                box_height = random.randint(
+                    int(0.15 * new_width), int(0.30 * new_height))
+                box_area = box_width * box_height
+
+                box[0] = random.randint(0, new_width - box_width)
+                box[1] = random.randint(0, new_height - box_height)
+                box[2] = box[0] + box_width
+                box[3] = box[1] + box_width
+
+                resized_image = resize_preserve_aspect_ratio_PIL(
+                    noun_image, box_area)
+                resized_image = make_white_transparent(resized_image)
+                noun_image_width, noun_image_height = resized_image.size
+                additional_x_offset = int((box_width - noun_image_width) / 2.0)
+                additional_y_offset = int(
+                    (box_height - noun_image_height) / 2.0)
+
+                upper_left_x = int(box[0] + additional_x_offset)
+                upper_left_y = int(box[1] + additional_y_offset)
+
+                new_image.paste(
+                    resized_image,
+                    box=(upper_left_x, upper_left_y),
+                    mask=resized_image)
+
+        final_image = new_image.resize((768, 768))
+        destination = os.path.join(pages_dir, "{0}.jpg".format(i))
+        final_image.save(destination)
+        created_images.append(destination)
+        os.remove(template_path)
 
     return created_images
 
@@ -482,15 +480,15 @@ def pad_bottom_of_images(image_paths, percentage=0.25):
         cv2.imwrite(image_path, padded_img)
 
 
-def stylize_images(image_paths, model_path):
-    print("Loading style transfer model...")
-    with stylize.Stylizer(model_path) as stylizer:
-        print("Applying style transfer to images...")
-        for i, image_path in enumerate(image_paths):
-            print("Stylizing page {0}".format(i + 1))
-            img = cv2.imread(image_path)
-            img_out = stylizer.stylize_image(img)
-            cv2.imwrite(image_path, img_out)
+def stylize_images(image_paths, stylizer=None):
+    if stylizer is None:
+        stylizer = stylize.Stylizer()
+    print("Applying style transfer to images...")
+    for i, image_path in enumerate(image_paths):
+        print("Stylizing page {0}".format(i + 1))
+        img = cv2.imread(image_path)
+        img_out = stylizer.stylize_image(img)
+        cv2.imwrite(image_path, img_out)
 
 
 def wrap_text(text, max_width, font):
@@ -575,7 +573,6 @@ def convert_images_to_pdf(input_dir, output_dir):
 
 def illustrate(input_file,
                output_dir,
-               model_path,
                font,
                remove_downloads=False):
 
@@ -586,7 +583,7 @@ def illustrate(input_file,
     nouns, images, template_images = find_images(text, pages, downloads_dir)
     image_paths = create_images(nouns, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
-    stylize_images(image_paths, model_path)
+    stylize_images(image_paths)
     add_text_to_images(image_paths, pages, font)
     convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
 
@@ -618,14 +615,6 @@ if __name__ == "__main__":
             os.path.dirname(__file__),
             '../illustrated_books/object_detection'))
     parser.add_argument(
-        '--style-model',
-        type=str,
-        required=False,
-        help='Path to the style transfer model.',
-        default=os.path.join(
-            os.path.dirname(__file__),
-            '../deps/faststyle/models/starry_final.ckpt'))
-    parser.add_argument(
         '--font',
         type=str,
         required=False,
@@ -637,7 +626,6 @@ if __name__ == "__main__":
 
     input_file = os.path.abspath(args.input_file)
     output_dir = os.path.abspath(args.output_dir)
-    model_path = os.path.abspath(args.style_model)
     font = get_font(args.font, args.font_size)
 
-    illustrate(input_file, output_dir, model_path, font)
+    illustrate(input_file, output_dir, font)
