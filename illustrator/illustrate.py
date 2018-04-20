@@ -322,6 +322,108 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
+def create_image(nouns, entities, images, template_image_path, detector=None):
+    if detector is None:
+        detector = vision.ObjectDetector()
+
+    template_image = detector.load_image(template_image_path)
+    boxes = detector.compute_bounding_boxes(template_image)
+
+    reference_image = Image.open(template_image_path)
+
+    width, height = reference_image.size
+    width_ratio = width / 512
+    height_ratio = height / 512
+
+    if width < height:
+        new_width = height
+        new_height = height
+    else:
+        new_width = width
+        new_height = width
+
+    new_image = Image.new('RGB', (new_width, new_height), color='white')
+
+    x_offset = int((new_width - width) / 2.0)
+    y_offset = int((new_height - height) / 2.0)
+
+    for noun in nouns:
+        try:
+            noun_image = Image.open(images[noun])
+        except:
+            print("Could not open image: {0}".format(images[noun]))
+            continue
+
+        if noun in entities:
+            noun = entities[noun]
+
+        if noun in boxes and boxes[noun].size:
+            if noun in boxes:
+                box = boxes[noun][0]
+            else:
+                box = boxes[entities[noun]].size
+
+            if box.size:
+                box[0] *= width_ratio
+                box[2] *= width_ratio
+                box[1] *= height_ratio
+                box[3] *= height_ratio
+
+                box_width = box[2] - box[0]
+                box_height = box[3] - box[1]
+                box_area = box_width * box_height
+                resized_image = resize_preserve_aspect_ratio_PIL(
+                    noun_image, box_area)
+                resized_image = make_white_transparent(resized_image)
+                noun_image_width, noun_image_height = resized_image.size
+                additional_x_offset = int(
+                    (box_width - noun_image_width) / 2.0)
+                additional_y_offset = int(
+                    (box_height - noun_image_height) / 2.0)
+
+                upper_left_x = int(box[0] + x_offset + additional_x_offset)
+                upper_left_y = int(box[1] + y_offset + additional_y_offset)
+
+                new_image.paste(
+                    resized_image,
+                    box=(upper_left_x, upper_left_y),
+                    mask=resized_image)
+
+        else:
+            # Choose random box
+            box = [0] * 4
+
+            box_width = random.randint(
+                int(0.15 * new_width), int(0.30 * new_width))
+            box_height = random.randint(
+                int(0.15 * new_width), int(0.30 * new_height))
+            box_area = box_width * box_height
+
+            box[0] = random.randint(0, new_width - box_width)
+            box[1] = random.randint(0, new_height - box_height)
+            box[2] = box[0] + box_width
+            box[3] = box[1] + box_width
+
+            resized_image = resize_preserve_aspect_ratio_PIL(
+                noun_image, box_area)
+            resized_image = make_white_transparent(resized_image)
+            noun_image_width, noun_image_height = resized_image.size
+            additional_x_offset = int((box_width - noun_image_width) / 2.0)
+            additional_y_offset = int(
+                (box_height - noun_image_height) / 2.0)
+
+            upper_left_x = int(box[0] + additional_x_offset)
+            upper_left_y = int(box[1] + additional_y_offset)
+
+            new_image.paste(
+                resized_image,
+                box=(upper_left_x, upper_left_y),
+                mask=resized_image)
+
+    final_image = new_image.resize((768, 768))
+    return final_image
+
+
 def create_images(nouns, entities, images, template_images, output_dir, detector=None):
     created_images = []
 
@@ -335,108 +437,18 @@ def create_images(nouns, entities, images, template_images, output_dir, detector
         else:
             raise
 
-    # Load object dection model
+    # Load object dection model if necessary
     if detector is None:
         detector = vision.ObjectDetector()
+
     print("Creating images...")
+
     for i, template_path in enumerate(template_images):
         print("Creating image for page {0}...".format(i + 1))
-        template_image = detector.load_image(template_path)
-        boxes = detector.compute_bounding_boxes(template_image)
-
-        reference_image = Image.open(template_path)
-
-        width, height = reference_image.size
-        width_ratio = width / 512
-        height_ratio = height / 512
-
-        if width < height:
-            new_width = height
-            new_height = height
-        else:
-            new_width = width
-            new_height = width
-
-        new_image = Image.new('RGB', (new_width, new_height), color='white')
-
-        x_offset = int((new_width - width) / 2.0)
-        y_offset = int((new_height - height) / 2.0)
-
-        for noun in nouns[i]:
-            try:
-                noun_image = Image.open(images[noun])
-            except:
-                print("Could not open image: {0}".format(images[noun]))
-                continue
-
-            if (noun in boxes or entities[noun] in boxes) and boxes[noun].size:
-                if noun in boxes:
-                    box = boxes[noun][0]
-                else:
-                    box = boxes[entities[noun]].size
-
-                if box.size:
-                    box[0] *= width_ratio
-                    box[2] *= width_ratio
-                    box[1] *= height_ratio
-                    box[3] *= height_ratio
-
-                    box_width = box[2] - box[0]
-                    box_height = box[3] - box[1]
-                    box_area = box_width * box_height
-                    resized_image = resize_preserve_aspect_ratio_PIL(
-                        noun_image, box_area)
-                    resized_image = make_white_transparent(resized_image)
-                    noun_image_width, noun_image_height = resized_image.size
-                    additional_x_offset = int(
-                        (box_width - noun_image_width) / 2.0)
-                    additional_y_offset = int(
-                        (box_height - noun_image_height) / 2.0)
-
-                    upper_left_x = int(box[0] + x_offset + additional_x_offset)
-                    upper_left_y = int(box[1] + y_offset + additional_y_offset)
-
-                    new_image.paste(
-                        resized_image,
-                        box=(upper_left_x, upper_left_y),
-                        mask=resized_image)
-
-            else:
-                # Choose random box
-                box = [0] * 4
-
-                box_width = random.randint(
-                    int(0.15 * new_width), int(0.30 * new_width))
-                box_height = random.randint(
-                    int(0.15 * new_width), int(0.30 * new_height))
-                box_area = box_width * box_height
-
-                box[0] = random.randint(0, new_width - box_width)
-                box[1] = random.randint(0, new_height - box_height)
-                box[2] = box[0] + box_width
-                box[3] = box[1] + box_width
-
-                resized_image = resize_preserve_aspect_ratio_PIL(
-                    noun_image, box_area)
-                resized_image = make_white_transparent(resized_image)
-                noun_image_width, noun_image_height = resized_image.size
-                additional_x_offset = int((box_width - noun_image_width) / 2.0)
-                additional_y_offset = int(
-                    (box_height - noun_image_height) / 2.0)
-
-                upper_left_x = int(box[0] + additional_x_offset)
-                upper_left_y = int(box[1] + additional_y_offset)
-
-                new_image.paste(
-                    resized_image,
-                    box=(upper_left_x, upper_left_y),
-                    mask=resized_image)
-
-        final_image = new_image.resize((768, 768))
+        created_image = create_image(nouns[i], entities, images, template_path, detector)
         destination = os.path.join(pages_dir, "{0}.jpg".format(i))
-        final_image.save(destination)
+        created_image.save(destination)
         created_images.append(destination)
-        os.remove(template_path)
 
     return created_images
 
@@ -591,7 +603,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/entity_recognition_story.txt'))
+            os.path.dirname(__file__), '../data/short_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
