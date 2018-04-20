@@ -161,7 +161,7 @@ class googleimagesdownload:
         # Open the link
         browser.get(url)
         time.sleep(1)
-        print("Getting you a lot of images. This may take a few moments...")
+        # print("Getting you a lot of images. This may take a few moments...")
 
         element = browser.find_element_by_tag_name("body")
         # Scroll down
@@ -179,7 +179,7 @@ class googleimagesdownload:
                 element.send_keys(Keys.PAGE_DOWN)
                 time.sleep(0.3)  # bot id protection
 
-        print("Reached end of Page.")
+        # print("Reached end of Page.")
         time.sleep(0.5)
 
         source = browser.page_source #page source
@@ -284,7 +284,7 @@ class googleimagesdownload:
         finally:
             output_file.close()
 
-        print("completed ====> " + image_name)
+        # print("completed ====> " + image_name)
         return
 
     def similar_images(self,similar_images):
@@ -385,7 +385,7 @@ class googleimagesdownload:
         if url:
             url = url
         elif similar_images:
-            print(similar_images)
+            # print(similar_images)
             keywordem = self.similar_images(similar_images)
             url = 'https://www.google.com/search?q=' + keywordem + '&espv=2&biw=1366&bih=667&site=webhp&source=lnms&tbm=isch&sa=X&ei=XosDVaCXD8TasATItgE&ved=0CAcQ_AUoAg'
         elif specific_site:
@@ -466,8 +466,8 @@ class googleimagesdownload:
 
     # Download Images
     def download_image_thumbnail(self,image_url,main_directory,dir_name,return_image_name,print_urls,socket_timeout,print_size):
-        if print_urls:
-            print("Image URL: " + image_url)
+        # if print_urls:
+        #     print("Image URL: " + image_url)
         try:
             req = Request(image_url, headers={
                 "User-Agent": "Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.27 Safari/537.17"})
@@ -500,8 +500,8 @@ class googleimagesdownload:
                 download_message = "Completed Image Thumbnail ====> " + return_image_name
 
                 # image size parameter
-                if print_size:
-                    print("Image Size: " + str(self.file_size(path)))
+                # if print_size:
+                #     print("Image Size: " + str(self.file_size(path)))
 
             except UnicodeEncodeError as e:
                 download_status = 'fail'
@@ -527,8 +527,8 @@ class googleimagesdownload:
 
     # Download Images
     def download_image(self,image_url,image_format,main_directory,dir_name,count,print_urls,socket_timeout,prefix,print_size):
-        if print_urls:
-            print("Image URL: " + image_url)
+        # if print_urls:
+        #     print("Image URL: " + image_url)
         try:
             req = Request(image_url, headers={
                 "User-Agent": "Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.17 (KHTML, like Gecko) Chrome/24.0.1312.27 Safari/537.17"})
@@ -583,8 +583,8 @@ class googleimagesdownload:
                 return_image_name = prefix + str(count) + ". " + image_name
 
                 # image size parameter
-                if print_size:
-                    print("Image Size: " + str(self.file_size(path)))
+                # if print_size:
+                #     print("Image Size: " + str(self.file_size(path)))
 
             except UnicodeEncodeError as e:
                 download_status = 'fail'
@@ -658,20 +658,20 @@ class googleimagesdownload:
             else:
                 #format the item for readability
                 object = self.format_object(object)
-                if arguments['metadata']:
-                    print("\nImage Metadata: " + str(object))
+                # if arguments['metadata']:
+                #     print("\nImage Metadata: " + str(object))
 
                 items.append(object)  # Append all the links in the list named 'Links'
 
                 #download the images
                 download_status,download_message,return_image_name = self.download_image(object['image_link'],object['image_format'],main_directory,dir_name,count,arguments['print_urls'],arguments['socket_timeout'],arguments['prefix'],arguments['print_size'])
-                print(download_message)
+                # print(download_message)
                 if download_status == "success":
 
                     # download image_thumbnails
                     if arguments['thumbnail']:
                         download_status, download_message_thumbnail = self.download_image_thumbnail(object['image_thumbnail_url'],main_directory,dir_name,return_image_name,arguments['print_urls'],arguments['socket_timeout'],arguments['print_size'])
-                        print(download_message_thumbnail)
+                        # print(download_message_thumbnail)
 
                     count += 1
                 else:
@@ -758,8 +758,8 @@ class googleimagesdownload:
                 i = 0
                 while i < len(search_keyword):      # 2.for every main keyword
                     iteration = "\n" + "Item no.: " + str(i + 1) + " -->" + " Item name = " + str(pky) + str(search_keyword[i] + str(sky))
-                    print(iteration)
-                    print("Evaluating...")
+                    # print(iteration)
+                    # print("Evaluating...")
                     search_term = pky + search_keyword[i] + sky
                     dir_name = search_term + ('-' + arguments['color'] if arguments['color'] else '')   #sub-directory
 
@@ -774,7 +774,7 @@ class googleimagesdownload:
                     else:
                         raw_html = self.download_extended_page(url,arguments['chromedriver'])
 
-                    print("Starting Download...")
+                    # print("Starting Download...")
                     items,errorCount = self._get_all_items(raw_html,main_directory,dir_name,limit,arguments)    #get all image items and download images
 
                     #dumps into a text file
@@ -790,11 +790,11 @@ class googleimagesdownload:
 
                     #Related images
                     if arguments['related_images']:
-                        print("\nGetting list of related keywords...this may take a few moments")
+                        # print("\nGetting list of related keywords...this may take a few moments")
                         tabs = self.get_all_tabs(raw_html)
                         for key, value in tabs.items():
                             final_search_term = (search_term + " - " + key)
-                            print("\nNow Downloading - " + final_search_term)
+                            # print("\nNow Downloading - " + final_search_term)
                             if limit < 101:
                                 new_raw_html = self.download_page(value)  # download page
                             else:
@@ -803,7 +803,7 @@ class googleimagesdownload:
                             self._get_all_items(new_raw_html, main_directory, search_term + " - " + key, limit,arguments)
 
                     i += 1
-                    print("\nErrors: " + str(errorCount) + "\n")
+                    # print("\nErrors: " + str(errorCount) + "\n")
         return
 
 #------------- Main Program -------------#
@@ -819,10 +819,10 @@ def main():
             response = googleimagesdownload()
             response.download(arguments)
 
-            print("\nEverything downloaded!")
+            # print("\nEverything downloaded!")
             t1 = time.time()  # stop the timer
             total_time = t1 - t0  # Calculating the total time required to crawl, find and download all the links of 60,000 images
-            print("Total time taken: " + str(total_time) + " Seconds")
+            # print("Total time taken: " + str(total_time) + " Seconds")
 
 if __name__ == "__main__":
     main()

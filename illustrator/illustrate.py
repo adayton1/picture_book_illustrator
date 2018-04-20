@@ -94,7 +94,7 @@ def google_image_search(keywords,
         #"aspect_ratio": "wide",
         "type": type,
         #"usage_rights": "labled-for-noncommercial-reuse-with-modification",
-        "metadata": True
+        # "metadata": False
     }
 
     if image_size:
