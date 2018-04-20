@@ -68,9 +68,13 @@ class ImageCaptioner(object):
     def generate(self, image_files):
         sentences = []
         for image_file in image_files:
-            captions = self.generator.beam_search(self.sess,
-                                                  tf.gfile.GFile(
-                                                      image_file, "rb").read())
+            try:
+                encoded_image = tf.gfile.GFile(image_file, "rb").read()
+                captions = self.generator.beam_search(self.sess, encoded_image)
+            except:
+                sentences.append("")
+                continue
+
             # Ignore begin and end words.
             sentence = [
                 self.vocab.id_to_word(w) for w in captions[0].sentence[1:-1]

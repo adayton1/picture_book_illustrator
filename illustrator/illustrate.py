@@ -210,7 +210,8 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
         nouns.append(noun)
 
-    keyword_string = ' '.join(keywords)
+    # keyword_string = ' '.join(keywords)
+    keyword_string = page_doc.text
     file_paths = google_image_search(
         keyword_string,
         "template",
@@ -254,7 +255,6 @@ def find_images(text, pages, output_dir):
     nouns = []
     template_images = []
 
-    # TODO: Load image caption module
     # Loading image caption module
     print("Loading image caption model...")
     with vision.ImageCaptioner() as captioner:
@@ -264,17 +264,16 @@ def find_images(text, pages, output_dir):
         for i, page in enumerate(pages):
             doc = nlp(page)
 
-            # TODO: Once image caption module is working, change num_images to 5 or 10
             page_nouns, possible_template_images = find_template_images(
                 doc,
                 os.path.join(output_dir, "templates{0}".format(i)),
-                num_images=2)
+                num_images=10)
             nouns.append(page_nouns)
 
-            # TODO: Once image caption module is working, remove the following line and uncomment the line after that
-            # best_template_path = possible_template_images
+            print("Captioning template images and choosing the best...")
             best_template_path = find_best_image(page, possible_template_images, nlp, captioner)
 
+            # TODO: Add file extension to destination
             destination = os.path.join(output_dir, "template{0}".format(i))
             shutil.copy(best_template_path, destination)
 
@@ -586,7 +585,6 @@ def illustrate(input_file,
     nouns, images, template_images = find_images(text, pages, downloads_dir)
     image_paths = create_images(nouns, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
-    # TODO: Fix stylize image error
     stylize_images(image_paths, model_path)
     add_text_to_images(image_paths, pages, font)
     convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
