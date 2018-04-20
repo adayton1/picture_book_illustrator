@@ -145,21 +145,11 @@ def google_image_search(keywords,
 
 def find_noun_images(nlp, text, output_dir):
     images = {}
+    entities = {}
 
     # NLP for whole text
     print("Running nlp...")
     doc = nlp(text)
-
-    # Find images corresponding to entities\
-    print("Downloading entity images...")
-    for entity in doc.ents:
-        if entity.label_ == "PERSON":
-            image_path = google_image_search(
-                entity.label_.lower(),
-                entity.text,
-                output_dir,
-                type="line-drawing")
-            images[entity.text] = image_path
 
     # Find images corresponding to the remainder of the nouns
     print("Downloading noun images...")
@@ -172,10 +162,9 @@ def find_noun_images(nlp, text, output_dir):
         if noun == "-PRON-":
             continue
 
-        # Ignore entities
-        # TODO: check if any type of entity
-        if noun_token.ent_type_ == "PERSON":
-            continue
+        # Save entities
+        if noun_token.ent_type_:
+            entities[noun] = noun_token.ent_type_.lower()
 
         # Ignore nouns that have already been found
         if noun in images:
@@ -188,11 +177,10 @@ def find_noun_images(nlp, text, output_dir):
         # Save noun and the path to the image
         images[noun] = image_path
 
-    return images
+    return images, entities
 
 
 def find_template_images(page_doc, output_dir, num_images=5):
-    keywords = []
     nouns = []
 
     for i, chunk in enumerate(page_doc.noun_chunks):
@@ -202,11 +190,6 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
         if noun == "-PRON-":
             continue
-
-        if noun_token.ent_type_ == "PERSON":
-            keywords.append(noun_token.ent_type_.lower())
-        else:
-            keywords.append(noun)
 
         nouns.append(noun)
 
@@ -251,7 +234,7 @@ def find_images(text, pages, output_dir, nlp=None, captioner=None):
         nlp = spacy.load("en_core_web_lg")
 
     # Find images of entities and nouns
-    images = find_noun_images(nlp, text, os.path.join(output_dir, "nouns"))
+    images, entities = find_noun_images(nlp, text, os.path.join(output_dir, "nouns"))
 
     nouns = []
     template_images = []
@@ -281,7 +264,7 @@ def find_images(text, pages, output_dir, nlp=None, captioner=None):
 
         template_images.append(destination)
 
-    return nouns, images, template_images
+    return nouns, entities, images, template_images
 
 
 # Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
@@ -339,7 +322,7 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_images(nouns, images, template_images, output_dir, detector=None):
+def create_images(nouns, entities, images, template_images, output_dir, detector=None):
     created_images = []
 
     pages_dir = os.path.join(output_dir, "pages")
@@ -386,8 +369,11 @@ def create_images(nouns, images, template_images, output_dir, detector=None):
                 print("Could not open image: {0}".format(images[noun]))
                 continue
 
-            if noun in boxes and boxes[noun].size:
-                box = boxes[noun][0]
+            if (noun in boxes or entities[noun] in boxes) and boxes[noun].size:
+                if noun in boxes:
+                    box = boxes[noun][0]
+                else:
+                    box = boxes[entities[noun]].size
 
                 if box.size:
                     box[0] *= width_ratio
@@ -580,8 +566,8 @@ def illustrate(input_file,
     text, pages = read_file(input_file)
 
     downloads_dir = os.path.join(output_dir, "downloads")
-    nouns, images, template_images = find_images(text, pages, downloads_dir)
-    image_paths = create_images(nouns, images, template_images, output_dir)
+    nouns, entities, images, template_images = find_images(text, pages, downloads_dir)
+    image_paths = create_images(nouns, entities, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
     stylize_images(image_paths)
     add_text_to_images(image_paths, pages, font)
@@ -605,7 +591,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/object_detection_story.txt'))
+            os.path.dirname(__file__), '../data/entity_recognition_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
