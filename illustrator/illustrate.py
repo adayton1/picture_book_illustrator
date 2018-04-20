@@ -486,7 +486,8 @@ def stylize_images(image_paths, model_path):
     print("Loading style transfer model...")
     with stylize.Stylizer(model_path) as stylizer:
         print("Applying style transfer to images...")
-        for image_path in image_paths:
+        for i, image_path in enumerate(image_paths):
+            print("Stylizing page {0}".format(i + 1))
             img = cv2.imread(image_path)
             img_out = stylizer.stylize_image(img)
             cv2.imwrite(image_path, img_out)
@@ -549,7 +550,7 @@ def add_text_to_images(image_paths, pages, font):
         text_position = compute_text_position(height, width, text_height,
                                               image_height)
         d.multiline_text(
-            text_position, multiline_text, font=font, fill="black")
+            text_position, multiline_text, font=font, fill="white")
 
         # Save the image
         img.save(image_path)
@@ -631,7 +632,7 @@ if __name__ == "__main__":
         help='Font name.',
         default='Times New Roman')
     parser.add_argument(
-        '--font-size', type=int, required=False, help='Font size.', default=18)
+        '--font-size', type=int, required=False, help='Font size.', default=32)
     args = parser.parse_args()
 
     input_file = os.path.abspath(args.input_file)
