@@ -143,17 +143,13 @@ def google_image_search(keywords,
         return file_paths
 
 
-def find_noun_images(nlp, text, output_dir):
+def find_noun_images(page_doc, output_dir):
     images = {}
     entities = {}
 
-    # NLP for whole text
-    print("Running nlp...")
-    doc = nlp(text)
-
     # Find images corresponding to the remainder of the nouns
     print("Downloading noun images...")
-    for chunk in doc.noun_chunks:
+    for chunk in page_doc.noun_chunks:
         # Get noun
         noun_token = chunk.root
         noun = noun_token.lemma_
@@ -227,14 +223,74 @@ def find_best_image(original_text, images, nlp, captioner):
     return random.choice(best_images)
 
 
-def find_images(text, pages, output_dir, nlp=None, captioner=None):
+def find_images_for_page(text, nount_to_image_map, output_dir, nlp=None, captioner=None):
+    # Load English model
+    if nlp is None:
+        print("Loading nlp model...")
+        nlp = spacy.load("en_core_web_lg")
+
+    # Natural language processing
+    page_doc = nlp(text)
+
+    nouns = []
+    entities = {}
+
+    # Find images corresponding to the remainder of the nouns
+    print("Downloading noun images...")
+    for chunk in page_doc.noun_chunks:
+        # Get noun
+        noun_token = chunk.root
+        noun = noun_token.lemma_
+
+        # Ignore pronouns
+        if noun == "-PRON-":
+            continue
+
+        # Save entities
+        if noun not in entities and noun_token.ent_type_:
+            entities[noun] = noun_token.ent_type_.lower()
+
+        # Ignore nouns that have already been found
+        if noun in nount_to_image_map:
+            continue
+
+        nouns.append(noun)
+
+        # Download image
+        keyword_search = chunk.text
+        image_path = google_image_search(keyword_search, noun, output_dir)
+
+        # Save noun and the path to the image
+        nount_to_image_map[noun] = image_path
+
+    # Loading image caption module
+    if captioner is None:
+        captioner = vision.ImageCaptioner()
+
+    keyword_string = page_doc.text
+    possible_template_images = google_image_search(
+        keyword_string,
+        "template",
+        os.path.join(output_dir, "templates"),
+        limit=10,
+        image_size="medium",
+        type="photo")
+
+    print("Captioning template images and choosing the best...")
+    best_template_path = find_best_image(text, possible_template_images,
+                                         nlp, captioner)
+
+    return nouns, entities, nount_to_image_map, best_template_path
+
+
+def find_images_for_full_text(text, pages, output_dir, nlp=None, captioner=None):
     # Load English model
     if nlp is None:
         print("Loading nlp model...")
         nlp = spacy.load("en_core_web_lg")
 
     # Find images of entities and nouns
-    images, entities = find_noun_images(nlp, text, os.path.join(output_dir, "nouns"))
+    images, entities = find_noun_images(nlp(text), os.path.join(output_dir, "nouns"))
 
     nouns = []
     template_images = []
@@ -578,7 +634,7 @@ def illustrate(input_file,
     text, pages = read_file(input_file)
 
     downloads_dir = os.path.join(output_dir, "downloads")
-    nouns, entities, images, template_images = find_images(text, pages, downloads_dir)
+    nouns, entities, images, template_images = find_images_for_full_text(text, pages, downloads_dir)
     image_paths = create_images(nouns, entities, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
     stylize_images(image_paths)
