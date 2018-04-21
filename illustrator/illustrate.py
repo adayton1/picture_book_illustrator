@@ -374,7 +374,7 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     new_height = math.sqrt(target_area / aspect_ratio)
     new_width = new_height * aspect_ratio
 
-    new_image = image.resize((int(new_width), int(new_height)))
+    new_image = image.resize((int(new_width), int(new_height)), Image.BICUBIC)
     return new_image
 
 
