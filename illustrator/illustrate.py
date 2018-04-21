@@ -254,11 +254,11 @@ def find_images_for_page(text,
         if noun not in entities and noun_token.ent_type_:
             entities[noun] = noun_token.ent_type_.lower()
 
-        nouns.append(noun)
-
         # Ignore nouns that have already been found
         if noun in noun_to_image_map:
             continue
+
+        nouns.append(noun)
 
         # Download image
         keyword_search = chunk.text
