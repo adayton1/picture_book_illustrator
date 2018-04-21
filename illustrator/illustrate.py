@@ -22,11 +22,11 @@ import vision
 
 # Module variables
 image_downloader = google_images_download.googleimagesdownload()
-page_width = 768
-page_height = 960
+page_width = 576   # 6 inches
+page_height = 864  # 9 inches
 
-image_width = 768
-image_height = 768
+image_width = 576  # 6 inches
+image_height = 576 # 6 inches
 
 
 def get_font(font_name=None, font_size=16):
@@ -196,7 +196,7 @@ def find_template_images(page_doc, output_dir, num_images=5):
         "template",
         output_dir,
         limit=num_images,
-        image_size="medium",
+        image_size="large",
         type="photo")
 
     return nouns, file_paths
@@ -273,7 +273,7 @@ def find_images_for_page(text, noun_to_image_map, output_dir, nlp=None, captione
         "template",
         os.path.join(output_dir, "templates"),
         limit=10,
-        image_size="medium",
+        image_size="large",
         type="photo")
 
     print("Captioning template images and choosing the best...")
@@ -476,7 +476,7 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
                 box=(upper_left_x, upper_left_y),
                 mask=resized_image)
 
-    final_image = new_image.resize((768, 768))
+    final_image = new_image.resize((image_width, image_height))
     return final_image
 
 
