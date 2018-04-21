@@ -221,7 +221,11 @@ def find_best_image(original_text, images, nlp, captioner):
     return random.choice(best_images)
 
 
-def find_images_for_page(text, noun_to_image_map, output_dir, nlp=None, captioner=None):
+def find_images_for_page(text,
+                         noun_to_image_map,
+                         output_dir,
+                         nlp=None,
+                         captioner=None):
     # Load English model
     if nlp is None:
         print("Loading nlp model...")
@@ -275,20 +279,25 @@ def find_images_for_page(text, noun_to_image_map, output_dir, nlp=None, captione
         type="photo")
 
     print("Captioning template images and choosing the best...")
-    best_template_path = find_best_image(text, possible_template_images,
-                                         nlp, captioner)
+    best_template_path = find_best_image(text, possible_template_images, nlp,
+                                         captioner)
 
     return nouns, entities, noun_to_image_map, best_template_path
 
 
-def find_images_for_full_text(text, pages, output_dir, nlp=None, captioner=None):
+def find_images_for_full_text(text,
+                              pages,
+                              output_dir,
+                              nlp=None,
+                              captioner=None):
     # Load English model
     if nlp is None:
         print("Loading nlp model...")
         nlp = spacy.load("en_core_web_lg")
 
     # Find images of entities and nouns
-    images, entities = find_noun_images(nlp(text), os.path.join(output_dir, "nouns"))
+    images, entities = find_noun_images(
+        nlp(text), os.path.join(output_dir, "nouns"))
 
     nouns = []
     template_images = []
@@ -430,8 +439,7 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
                     noun_image, box_area)
                 resized_image = make_white_transparent(resized_image)
                 noun_image_width, noun_image_height = resized_image.size
-                additional_x_offset = int(
-                    (box_width - noun_image_width) / 2.0)
+                additional_x_offset = int((box_width - noun_image_width) / 2.0)
                 additional_y_offset = int(
                     (box_height - noun_image_height) / 2.0)
 
@@ -448,9 +456,9 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
             box = [0] * 4
 
             box_width = random.randint(
-                int(0.3 * new_width), int(0.5 * new_width))
+                int(0.45 * new_width), int(0.80 * new_width))
             box_height = random.randint(
-                int(0.3 * new_width), int(0.5 * new_height))
+                int(0.45 * new_width), int(0.80 * new_height))
             box_area = box_width * box_height
 
             box[0] = random.randint(0, new_width - box_width)
@@ -463,8 +471,7 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
             resized_image = make_white_transparent(resized_image)
             noun_image_width, noun_image_height = resized_image.size
             additional_x_offset = int((box_width - noun_image_width) / 2.0)
-            additional_y_offset = int(
-                (box_height - noun_image_height) / 2.0)
+            additional_y_offset = int((box_height - noun_image_height) / 2.0)
 
             upper_left_x = int(box[0] + additional_x_offset)
             upper_left_y = int(box[1] + additional_y_offset)
@@ -478,7 +485,12 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
     return final_image
 
 
-def create_images(nouns, entities, images, template_images, output_dir, detector=None):
+def create_images(nouns,
+                  entities,
+                  images,
+                  template_images,
+                  output_dir,
+                  detector=None):
     created_images = []
 
     pages_dir = os.path.join(output_dir, "pages")
@@ -499,7 +511,8 @@ def create_images(nouns, entities, images, template_images, output_dir, detector
 
     for i, template_path in enumerate(template_images):
         print("Creating image for page {0}...".format(i + 1))
-        created_image = create_image(nouns[i], entities, images, template_path, detector)
+        created_image = create_image(nouns[i], entities, images, template_path,
+                                     detector)
         destination = os.path.join(pages_dir, "{0}.jpg".format(i))
         created_image.save(destination)
         created_images.append(destination)
@@ -623,17 +636,16 @@ def convert_images_to_pdf(input_dir, output_dir):
         f.write(img2pdf.convert(image_paths))
 
 
-def illustrate(input_file,
-               output_dir,
-               font,
-               remove_downloads=False):
+def illustrate(input_file, output_dir, font, remove_downloads=False):
 
     print("Reading input file...")
     text, pages = read_file(input_file)
 
     downloads_dir = os.path.join(output_dir, "downloads")
-    nouns, entities, images, template_images = find_images_for_full_text(text, pages, downloads_dir)
-    image_paths = create_images(nouns, entities, images, template_images, output_dir)
+    nouns, entities, images, template_images = find_images_for_full_text(
+        text, pages, downloads_dir)
+    image_paths = create_images(nouns, entities, images, template_images,
+                                output_dir)
     pad_bottom_of_images(image_paths)
     stylize_images(image_paths)
     add_text_to_images(image_paths, pages, font)
@@ -657,7 +669,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/object_detection_story.txt'))
+            os.path.dirname(__file__), '../data/short_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
