@@ -22,11 +22,11 @@ import vision
 
 # Module variables
 image_downloader = google_images_download.googleimagesdownload()
-page_width = 576  # 6 inches
-page_height = 864  # 9 inches
+page_width = 480   # 5 inches
+page_height = 672  # 7 inches
 
-image_width = 576  # 6 inches
-image_height = 576  # 6 inches
+image_width = 480  # 5 inches
+image_height = 480 # 5 inches
 
 
 def get_font(font_name=None, font_size=16):
@@ -84,21 +84,19 @@ def google_image_search(keywords,
                         output_file_name,
                         output_dir,
                         limit=1,
-                        image_size=None,
+                        image_size="large",
                         type="line-drawing"):
     image_downloader_arguments = {
         "keywords": keywords,
         "output_directory": output_dir,
         "limit": limit,
         "format": "jpg",
-        #"aspect_ratio": "wide",
+        "size": image_size,
         "type": type,
+        #"aspect_ratio": "wide",
         #"usage_rights": "labled-for-noncommercial-reuse-with-modification",
         # "metadata": False
     }
-
-    if image_size:
-        image_downloader_arguments["size"] = image_size
 
     # Download the images corresponding to the keyword search
     image_downloader.download(image_downloader_arguments)
