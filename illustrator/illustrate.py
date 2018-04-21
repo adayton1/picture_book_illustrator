@@ -143,27 +143,13 @@ def google_image_search(keywords,
         return file_paths
 
 
-def find_noun_images(nlp, text, output_dir):
+def find_noun_images(page_doc, output_dir):
     images = {}
-
-    # NLP for whole text
-    print("Running nlp...")
-    doc = nlp(text)
-
-    # Find images corresponding to entities\
-    print("Downloading entity images...")
-    for entity in doc.ents:
-        if entity.label_ == "PERSON":
-            image_path = google_image_search(
-                entity.label_.lower(),
-                entity.text,
-                output_dir,
-                type="line-drawing")
-            images[entity.text] = image_path
+    entities = {}
 
     # Find images corresponding to the remainder of the nouns
     print("Downloading noun images...")
-    for chunk in doc.noun_chunks:
+    for chunk in page_doc.noun_chunks:
         # Get noun
         noun_token = chunk.root
         noun = noun_token.lemma_
@@ -172,10 +158,9 @@ def find_noun_images(nlp, text, output_dir):
         if noun == "-PRON-":
             continue
 
-        # Ignore entities
-        # TODO: check if any type of entity
-        if noun_token.ent_type_ == "PERSON":
-            continue
+        # Save entities
+        if noun_token.ent_type_:
+            entities[noun] = noun_token.ent_type_.lower()
 
         # Ignore nouns that have already been found
         if noun in images:
@@ -188,11 +173,10 @@ def find_noun_images(nlp, text, output_dir):
         # Save noun and the path to the image
         images[noun] = image_path
 
-    return images
+    return images, entities
 
 
 def find_template_images(page_doc, output_dir, num_images=5):
-    keywords = []
     nouns = []
 
     for i, chunk in enumerate(page_doc.noun_chunks):
@@ -202,11 +186,6 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
         if noun == "-PRON-":
             continue
-
-        if noun_token.ent_type_ == "PERSON":
-            keywords.append(noun_token.ent_type_.lower())
-        else:
-            keywords.append(noun)
 
         nouns.append(noun)
 
@@ -244,14 +223,74 @@ def find_best_image(original_text, images, nlp, captioner):
     return random.choice(best_images)
 
 
-def find_images(text, pages, output_dir, nlp=None, captioner=None):
+def find_images_for_page(text, noun_to_image_map, output_dir, nlp=None, captioner=None):
+    # Load English model
+    if nlp is None:
+        print("Loading nlp model...")
+        nlp = spacy.load("en_core_web_lg")
+
+    # Natural language processing
+    page_doc = nlp(text)
+
+    nouns = []
+    entities = {}
+
+    # Find images corresponding to the remainder of the nouns
+    print("Downloading noun images...")
+    for chunk in page_doc.noun_chunks:
+        # Get noun
+        noun_token = chunk.root
+        noun = noun_token.lemma_
+
+        # Ignore pronouns
+        if noun == "-PRON-":
+            continue
+
+        # Save entities
+        if noun not in entities and noun_token.ent_type_:
+            entities[noun] = noun_token.ent_type_.lower()
+
+        nouns.append(noun)
+
+        # Ignore nouns that have already been found
+        if noun in noun_to_image_map:
+            continue
+
+        # Download image
+        keyword_search = chunk.text
+        image_path = google_image_search(keyword_search, noun, output_dir)
+
+        # Save noun and the path to the image
+        noun_to_image_map[noun] = image_path
+
+    # Loading image caption module
+    if captioner is None:
+        captioner = vision.ImageCaptioner()
+
+    keyword_string = page_doc.text
+    possible_template_images = google_image_search(
+        keyword_string,
+        "template",
+        os.path.join(output_dir, "templates"),
+        limit=10,
+        image_size="medium",
+        type="photo")
+
+    print("Captioning template images and choosing the best...")
+    best_template_path = find_best_image(text, possible_template_images,
+                                         nlp, captioner)
+
+    return nouns, entities, noun_to_image_map, best_template_path
+
+
+def find_images_for_full_text(text, pages, output_dir, nlp=None, captioner=None):
     # Load English model
     if nlp is None:
         print("Loading nlp model...")
         nlp = spacy.load("en_core_web_lg")
 
     # Find images of entities and nouns
-    images = find_noun_images(nlp, text, os.path.join(output_dir, "nouns"))
+    images, entities = find_noun_images(nlp(text), os.path.join(output_dir, "nouns"))
 
     nouns = []
     template_images = []
@@ -281,7 +320,7 @@ def find_images(text, pages, output_dir, nlp=None, captioner=None):
 
         template_images.append(destination)
 
-    return nouns, images, template_images
+    return nouns, entities, images, template_images
 
 
 # Adapted from https://stackoverflow.com/questions/765736/using-pil-to-make-all-white-pixels-transparent
@@ -339,7 +378,109 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_images(nouns, images, template_images, output_dir, detector=None):
+def create_image(nouns, entities, images, template_image_path, detector=None):
+    if detector is None:
+        detector = vision.ObjectDetector()
+
+    template_image = detector.load_image(template_image_path)
+    boxes = detector.compute_bounding_boxes(template_image)
+
+    reference_image = Image.open(template_image_path)
+
+    width, height = reference_image.size
+    width_ratio = width / 512
+    height_ratio = height / 512
+
+    if width < height:
+        new_width = height
+        new_height = height
+    else:
+        new_width = width
+        new_height = width
+
+    new_image = Image.new('RGB', (new_width, new_height), color='white')
+
+    x_offset = int((new_width - width) / 2.0)
+    y_offset = int((new_height - height) / 2.0)
+
+    for noun in nouns:
+        try:
+            noun_image = Image.open(images[noun])
+        except:
+            print("Could not open image: {0}".format(images[noun]))
+            continue
+
+        if noun in entities:
+            noun = entities[noun]
+
+        if noun in boxes and boxes[noun].size:
+            if noun in boxes:
+                box = boxes[noun][0]
+            else:
+                box = boxes[entities[noun]].size
+
+            if box.size:
+                box[0] *= width_ratio
+                box[2] *= width_ratio
+                box[1] *= height_ratio
+                box[3] *= height_ratio
+
+                box_width = box[2] - box[0]
+                box_height = box[3] - box[1]
+                box_area = box_width * box_height
+                resized_image = resize_preserve_aspect_ratio_PIL(
+                    noun_image, box_area)
+                resized_image = make_white_transparent(resized_image)
+                noun_image_width, noun_image_height = resized_image.size
+                additional_x_offset = int(
+                    (box_width - noun_image_width) / 2.0)
+                additional_y_offset = int(
+                    (box_height - noun_image_height) / 2.0)
+
+                upper_left_x = int(box[0] + x_offset + additional_x_offset)
+                upper_left_y = int(box[1] + y_offset + additional_y_offset)
+
+                new_image.paste(
+                    resized_image,
+                    box=(upper_left_x, upper_left_y),
+                    mask=resized_image)
+
+        else:
+            # Choose random box
+            box = [0] * 4
+
+            box_width = random.randint(
+                int(0.15 * new_width), int(0.30 * new_width))
+            box_height = random.randint(
+                int(0.15 * new_width), int(0.30 * new_height))
+            box_area = box_width * box_height
+
+            box[0] = random.randint(0, new_width - box_width)
+            box[1] = random.randint(0, new_height - box_height)
+            box[2] = box[0] + box_width
+            box[3] = box[1] + box_width
+
+            resized_image = resize_preserve_aspect_ratio_PIL(
+                noun_image, box_area)
+            resized_image = make_white_transparent(resized_image)
+            noun_image_width, noun_image_height = resized_image.size
+            additional_x_offset = int((box_width - noun_image_width) / 2.0)
+            additional_y_offset = int(
+                (box_height - noun_image_height) / 2.0)
+
+            upper_left_x = int(box[0] + additional_x_offset)
+            upper_left_y = int(box[1] + additional_y_offset)
+
+            new_image.paste(
+                resized_image,
+                box=(upper_left_x, upper_left_y),
+                mask=resized_image)
+
+    final_image = new_image.resize((768, 768))
+    return final_image
+
+
+def create_images(nouns, entities, images, template_images, output_dir, detector=None):
     created_images = []
 
     pages_dir = os.path.join(output_dir, "pages")
@@ -352,105 +493,18 @@ def create_images(nouns, images, template_images, output_dir, detector=None):
         else:
             raise
 
-    # Load object dection model
+    # Load object dection model if necessary
     if detector is None:
         detector = vision.ObjectDetector()
+
     print("Creating images...")
+
     for i, template_path in enumerate(template_images):
         print("Creating image for page {0}...".format(i + 1))
-        template_image = detector.load_image(template_path)
-        boxes = detector.compute_bounding_boxes(template_image)
-
-        reference_image = Image.open(template_path)
-
-        width, height = reference_image.size
-        width_ratio = width / 512
-        height_ratio = height / 512
-
-        if width < height:
-            new_width = height
-            new_height = height
-        else:
-            new_width = width
-            new_height = width
-
-        new_image = Image.new('RGB', (new_width, new_height), color='white')
-
-        x_offset = int((new_width - width) / 2.0)
-        y_offset = int((new_height - height) / 2.0)
-
-        for noun in nouns[i]:
-            try:
-                noun_image = Image.open(images[noun])
-            except:
-                print("Could not open image: {0}".format(images[noun]))
-                continue
-
-            if noun in boxes and boxes[noun].size:
-                box = boxes[noun][0]
-
-                if box.size:
-                    box[0] *= width_ratio
-                    box[2] *= width_ratio
-                    box[1] *= height_ratio
-                    box[3] *= height_ratio
-
-                    box_width = box[2] - box[0]
-                    box_height = box[3] - box[1]
-                    box_area = box_width * box_height
-                    resized_image = resize_preserve_aspect_ratio_PIL(
-                        noun_image, box_area)
-                    resized_image = make_white_transparent(resized_image)
-                    noun_image_width, noun_image_height = resized_image.size
-                    additional_x_offset = int(
-                        (box_width - noun_image_width) / 2.0)
-                    additional_y_offset = int(
-                        (box_height - noun_image_height) / 2.0)
-
-                    upper_left_x = int(box[0] + x_offset + additional_x_offset)
-                    upper_left_y = int(box[1] + y_offset + additional_y_offset)
-
-                    new_image.paste(
-                        resized_image,
-                        box=(upper_left_x, upper_left_y),
-                        mask=resized_image)
-
-            else:
-                # Choose random box
-                box = [0] * 4
-
-                box_width = random.randint(
-                    int(0.15 * new_width), int(0.30 * new_width))
-                box_height = random.randint(
-                    int(0.15 * new_width), int(0.30 * new_height))
-                box_area = box_width * box_height
-
-                box[0] = random.randint(0, new_width - box_width)
-                box[1] = random.randint(0, new_height - box_height)
-                box[2] = box[0] + box_width
-                box[3] = box[1] + box_width
-
-                resized_image = resize_preserve_aspect_ratio_PIL(
-                    noun_image, box_area)
-                resized_image = make_white_transparent(resized_image)
-                noun_image_width, noun_image_height = resized_image.size
-                additional_x_offset = int((box_width - noun_image_width) / 2.0)
-                additional_y_offset = int(
-                    (box_height - noun_image_height) / 2.0)
-
-                upper_left_x = int(box[0] + additional_x_offset)
-                upper_left_y = int(box[1] + additional_y_offset)
-
-                new_image.paste(
-                    resized_image,
-                    box=(upper_left_x, upper_left_y),
-                    mask=resized_image)
-
-        final_image = new_image.resize((768, 768))
+        created_image = create_image(nouns[i], entities, images, template_path, detector)
         destination = os.path.join(pages_dir, "{0}.jpg".format(i))
-        final_image.save(destination)
+        created_image.save(destination)
         created_images.append(destination)
-        os.remove(template_path)
 
     return created_images
 
@@ -580,8 +634,8 @@ def illustrate(input_file,
     text, pages = read_file(input_file)
 
     downloads_dir = os.path.join(output_dir, "downloads")
-    nouns, images, template_images = find_images(text, pages, downloads_dir)
-    image_paths = create_images(nouns, images, template_images, output_dir)
+    nouns, entities, images, template_images = find_images_for_full_text(text, pages, downloads_dir)
+    image_paths = create_images(nouns, entities, images, template_images, output_dir)
     pad_bottom_of_images(image_paths)
     stylize_images(image_paths)
     add_text_to_images(image_paths, pages, font)
@@ -605,7 +659,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/object_detection_story.txt'))
+            os.path.dirname(__file__), '../data/short_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
