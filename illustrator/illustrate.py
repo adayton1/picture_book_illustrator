@@ -464,9 +464,9 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
             box = [0] * 4
 
             box_width = random.randint(
-                int(0.35 * new_width), int(0.60 * new_width))
+                int(0.25 * new_width), int(0.60 * new_width))
             box_height = random.randint(
-                int(0.35 * new_width), int(0.60 * new_height))
+                int(0.25 * new_width), int(0.60 * new_height))
             box_area = box_width * box_height
 
             box[0] = random.randint(0, new_width - box_width)
