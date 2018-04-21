@@ -540,9 +540,9 @@ def stylize_images(image_paths, stylizer=None):
     print("Applying style transfer to images...")
     for i, image_path in enumerate(image_paths):
         print("Stylizing page {0}".format(i + 1))
-        img = cv2.imread(image_path)
-        img_out = stylizer.stylize_image(img)
-        cv2.imwrite(image_path, img_out)
+        img_out = stylizer.stylize_image(image_path)
+        with open(image_path, 'wb') as f:
+            f.write(img_out)
 
 
 def wrap_text(text, max_width, font):

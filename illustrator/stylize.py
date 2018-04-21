@@ -1,64 +1,91 @@
-# Adapted from https://github.com/ghwatson/faststyle/blob/master/stylize_image.py
+# Adapted from: https://github.com/hzy46/fast-neural-style-tensorflow
+from __future__ import print_function
+import random
 import os
 
-import cv2
-import numpy as np
 import tensorflow as tf
 
-from deps.faststyle.im_transf_net import create_net
-import deps.faststyle.utils as utils
-
-standard_image_size = (512, 512)
+import utils
+utils.extend_syspath([
+ 'deps/fast-neural-style-tensorflow',
+])  # yapf: disable=
+from preprocessing import preprocessing_factory as preprocessing
+import reader
+import model
+import time
 
 
 class Stylizer(object):
-    def __init__(self,
-                 model_file_path=os.path.join(
-                     os.path.dirname(__file__),
-                     '../deps/faststyle/models/starry_final.ckpt'),
-                 image_size=standard_image_size):
-        print("Loading stylizer model...")
-        self.model_path = model_file_path
+    def __init__(self, model_file_path=None):
+        self.image_preprocessing_fn, _ = preprocessing.get_preprocessing(
+            'vgg_16', is_training=False)
 
-        with tf.variable_scope('img_t_net'):
-            self.inputs = tf.placeholder(
-                tf.float32,
-                shape=(1, image_size[0], image_size[1], 3),
-                name='input')
-            self.net = create_net(self.inputs, "resize")
+        self.model_file_path = model_file_path
+        if model_file_path is None:
+            model_dir = os.path.join(
+                os.path.dirname(__file__), '../deps/fast-neural-style-models')
+            model_files = os.listdir(model_dir)
+            self.model_file_path = os.path.join(model_dir,
+                                                random.choice(model_files))
 
-        self.sess = tf.Session()
-        tf.train.Saver().restore(self.sess, self.model_path)
+        self.model_path = os.path.abspath(self.model_file_path)
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.sess.close()
+        # self.sess.close()
+        pass
 
-    def stylize_image(self, img, content_target_resize=1.0):
+    def stylize_image(self, image_path, image_size=None):
         print('Stylizing image...')
+        with tf.Graph().as_default():
+            with tf.Session().as_default() as sess:
+                if image_size:
+                    height, width = image_size
+                else:
+                    with open(image_path, 'rb') as img:
+                        with tf.Session().as_default() as sess:
+                            if image_path.lower().endswith('png'):
+                                image = sess.run(
+                                    tf.image.decode_png(img.read()))
+                            else:
+                                image = sess.run(
+                                    tf.image.decode_jpeg(img.read()))
+                            height = image.shape[0]
+                            width = image.shape[1]
 
-        # Preprocess input image.
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = utils.imresize(img, content_target_resize)
-        orig_dim = img.shape
-        img = cv2.resize(img, standard_image_size)
-        img_4d = img[np.newaxis, :]
+                    image = reader.get_image(image_path, height, width,
+                                             self.image_preprocessing_fn)
 
-        print('Evaluating...')
-        img_out = self.sess.run(self.net, feed_dict={self.inputs: img_4d})
+                    # Add batch dimension
+                    image = tf.expand_dims(image, 0)
 
-        # Postprocess + save the output image.
-        print('Saving image...')
-        img_out = np.squeeze(img_out)
+                    generated = model.net(image, training=False)
+                    generated = tf.cast(generated, tf.uint8)
 
-        # Original dimensions are (height, width, channels)
-        # The resize function expects (width, height)
-        new_dim = (orig_dim[1], orig_dim[0])
-        img_out = cv2.resize(img_out, new_dim)
-        img_out = cv2.cvtColor(img_out, cv2.COLOR_RGB2BGR)
+                    # Remove batch dimension
+                    generated = tf.squeeze(generated, [0])
 
-        print('Done stylizing image.')
+                    # Restore model variables.
+                    saver = tf.train.Saver(
+                        tf.global_variables(),
+                        write_version=tf.train.SaverDef.V1)
+                    sess.run([
+                        tf.global_variables_initializer(),
+                        tf.local_variables_initializer()
+                    ])
+                    saver.restore(sess, self.model_path)
 
-        return img_out
+                return sess.run(tf.image.encode_jpeg(generated))
+
+
+if __name__ == '__main__':
+    import sys
+    import numpy as np
+    import cv2
+
+    with Stylizer() as stylizer:
+        image = stylizer.stylize_image(sys.argv[1])
+        with open('out.jpg', 'wb') as f:
+            f.write(image)

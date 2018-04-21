@@ -10,3 +10,7 @@
 	path = deps/cocoapi
 	url = https://github.com/cocodataset/cocoapi.git
 	ignore = untracked
+[submodule "deps/fast-neural-style-tensorflow"]
+	path = deps/fast-neural-style-tensorflow
+	url = https://github.com/hzy46/fast-neural-style-tensorflow.git
+	ignore = untracked
