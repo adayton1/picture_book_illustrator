@@ -278,6 +278,10 @@ def find_images_for_page(text,
         image_size="large",
         type="photo")
 
+    if len(possible_template_images) == 0:
+        print("No template images found, oh well")
+        return nouns, entities, noun_to_image_map, ""
+
     print("Captioning template images and choosing the best...")
     best_template_path = find_best_image(text, possible_template_images, nlp,
                                          captioner)
@@ -389,14 +393,18 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
     if detector is None:
         detector = vision.ObjectDetector()
 
-    template_image = detector.load_image(template_image_path)
-    boxes = detector.compute_bounding_boxes(template_image)
+    if template_image_path != "":
+        template_image = detector.load_image(template_image_path)
+        boxes = detector.compute_bounding_boxes(template_image)
 
-    reference_image = Image.open(template_image_path)
+        reference_image = Image.open(template_image_path)
+        width, height = reference_image.size
+        width_ratio = width / 512
+        height_ratio = height / 512
+    else:
+        boxes = []
+        width, height = 0, 0
 
-    width, height = reference_image.size
-    width_ratio = width / 512
-    height_ratio = height / 512
 
     if width < height:
         new_width = height

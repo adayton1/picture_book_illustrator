@@ -50,6 +50,7 @@ if __name__ == "__main__":
     font = get_font(args.font, args.font_size)
 
     # load models
+    print("Loading spacy model...")
     nlp = spacy.load("en_core_web_lg")
     captioner = vision.ImageCaptioner()
     stylizer = stylize.Stylizer()
@@ -75,7 +76,6 @@ if __name__ == "__main__":
         text = text.replace(",", "")
         text = text.replace(";", ".")
 
-        print("(BEFORE) NOUNS TO IMGS:", nouns_to_imgs)
         downloads_dir = os.path.join(output_dir, "downloads")
         nouns, entities, nouns_to_imgs, template_img_path = find_images_for_page(
             text, nouns_to_imgs, downloads_dir, nlp, captioner)
@@ -84,7 +84,6 @@ if __name__ == "__main__":
             cv2.imshow(noun, im)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-        print("(AFTER) NOUNS TO IMGS:", nouns_to_imgs, nouns)
 
         created_image_pil = create_image(nouns, entities, nouns_to_imgs,
                                          template_img_path, detector)
@@ -94,7 +93,6 @@ if __name__ == "__main__":
 
         composed_image_path = os.path.join(output_dir, "pages",
                                            "{}.jpg".format(pageNum))
-        print("COMPOSED IMAGE PATH:", composed_image_path)
         cv2.imwrite(composed_image_path, created_image)
         cv2.imshow("composed image", created_image)
         cv2.waitKey(0)
