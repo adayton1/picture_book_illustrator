@@ -69,9 +69,13 @@ if __name__ == "__main__":
             continue
         if text.lower() == "eof" \
          or text.lower() == "exit" \
-         or text.lower() == "quit" \
-         or text.lower() == "the end":
+         or text.lower() == "done" \
+         or text.lower() == "quit":
             break
+        if text.lower() == "the end":
+            pageNum = -1
+            nouns_to_imgs = {}
+            continue
 
         text = text.replace(",", "")
         text = text.replace(";", ".")
@@ -103,6 +107,11 @@ if __name__ == "__main__":
         stylize_images([composed_image_path], stylizer)
 
         add_text_to_images([composed_image_path], [text], font)
+
+        final = cv2.imread(composed_image_path)
+        cv2.imshow("final page", final)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
     print("Converting to PDF")
     convert_images_to_pdf(os.path.join(output_dir, "pages"), output_dir)
