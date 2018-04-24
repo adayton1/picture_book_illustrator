@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import codecs
+import copy
 import cv2
 import errno
 import glob
@@ -12,7 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 import random
 import shutil
 import spacy
-
+import gender_guesser.detector as gender
+gender_detector = gender.Detector(case_sensitive=False)
 import utils
 utils.extend_syspath(['./'])  # HACK
 
@@ -49,7 +51,8 @@ def get_font(font_name=None, font_size=16):
 
     if not font_path:
         font_manager = matplotlib.font_manager.FontManager(size=font_size)
-        font_properties = matplotlib.font_manager.FontProperties(size=font_size)
+        font_properties = matplotlib.font_manager.FontProperties(
+            size=font_size)
         font_path = font_manager.findfont(font_properties)
 
     return ImageFont.truetype(font=font_path, size=font_size)
@@ -153,10 +156,14 @@ def find_noun_images(page_doc, output_dir):
         # Download image
         if noun_token.ent_type_ == "PERSON":
             keyword_search = chunk.text
-            image_path = google_image_search(keyword_search, noun, output_dir)
+            gender = gender_detector.get_gender(noun)
+            keyword_search = gender + " full length person white background"
+            image_path = google_image_search(
+                keyword_search, noun, output_dir, type=None)
         else:
             keyword_search = chunk.text + " white background"
-            image_path = google_image_search(keyword_search, noun, output_dir, type=None)
+            image_path = google_image_search(
+                keyword_search, noun, output_dir, type=None)
 
         # Save noun and the path to the image
         images[noun] = image_path
@@ -166,7 +173,7 @@ def find_noun_images(page_doc, output_dir):
 
 def find_template_images(page_doc, output_dir, num_images=5):
     nouns = []
-
+    text = copy.copy(page_doc.text)
     for i, chunk in enumerate(page_doc.noun_chunks):
         # Get noun
         noun_token = chunk.root
@@ -176,11 +183,12 @@ def find_template_images(page_doc, output_dir, num_images=5):
             continue
 
         nouns.append(noun)
+        if noun_token.ent_type_ == "PERSON":
+            text = text.replace(noun_token.text,
+                                gender_detector.get_gender(noun))
 
-    # keyword_string = ' '.join(keywords)
-    keyword_string = page_doc.text
     file_paths = google_image_search(
-        keyword_string,
+        text,
         "template",
         output_dir,
         limit=num_images,
@@ -379,7 +387,12 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_image(nouns, entities, images, template_image_path, detector=None, show_images=False):
+def create_image(nouns,
+                 entities,
+                 images,
+                 template_image_path,
+                 detector=None,
+                 show_images=False):
     if detector is None:
         detector = vision.ObjectDetector()
 
@@ -394,7 +407,6 @@ def create_image(nouns, entities, images, template_image_path, detector=None, sh
     else:
         boxes = []
         width, height = image_width, image_height
-
 
     if width < height:
         new_width = height
