@@ -100,8 +100,8 @@ if __name__ == "__main__":
             nouns_to_imgs = {}
             continue
 
-        # text = text.replace(",", "")
-        # text = text.replace(";", ".")
+        text = text.replace(",", "")
+        text = text.replace(";", ".")
 
         # Find images for the nouns and entities on a page
         nouns, entities, nouns_to_imgs, template_img_path = find_images_for_page(
