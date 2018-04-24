@@ -107,3 +107,4 @@ checkpoints/
 logdir/
 test.py
 illustrated_books/
+books/
