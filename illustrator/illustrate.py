@@ -150,8 +150,12 @@ def find_noun_images(page_doc, output_dir):
             continue
 
         # Download image
-        keyword_search = chunk.text
-        image_path = google_image_search(keyword_search, noun, output_dir)
+        if noun_token.ent_type_ == "PERSON":
+            keyword_search = chunk.text
+            image_path = google_image_search(keyword_search, noun, output_dir)
+        else:
+            keyword_search = chunk.text + " white background"
+            image_path = google_image_search(keyword_search, noun, output_dir, type=None)
 
         # Save noun and the path to the image
         images[noun] = image_path
