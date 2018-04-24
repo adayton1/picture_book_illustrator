@@ -307,7 +307,7 @@ def find_images_for_full_text(text,
         page_nouns, possible_template_images = find_template_images(
             doc,
             os.path.join(output_dir, "templates{0}".format(i)),
-            num_images=10)
+            num_images=20)
         nouns.append(page_nouns)
 
         print("Captioning template images and choosing the best...")
