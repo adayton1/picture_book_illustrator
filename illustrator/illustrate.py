@@ -667,15 +667,14 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/object_detection_story.txt'))
+            os.path.dirname(__file__), '../data/short_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
         required=False,
         help='Path to the output directory.',
         default=os.path.join(
-            os.path.dirname(__file__),
-            '../illustrated_books/object_detection'))
+            os.path.dirname(__file__), '../books/short_story'))
     parser.add_argument(
         '--font',
         type=str,
