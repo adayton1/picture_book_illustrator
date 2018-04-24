@@ -34,8 +34,7 @@ def get_font(font_name=None, font_size=16):
 
     font_path = None
 
-    all_fonts = matplotlib.font_manager.findSystemFonts(
-        fontpaths=None, fontext='ttf')
+    all_fonts = matplotlib.font_manager.findSystemFonts()
 
     for font_file in all_fonts:
         font_file_name = os.path.basename(font_file)
@@ -49,23 +48,9 @@ def get_font(font_name=None, font_size=16):
                 break
 
     if not font_path:
-        font_manager = matplotlib.font_manager.FontManager(
-            size=16, weight='normal')
-        font_properties = matplotlib.font_manager.FontProperties(
-            family=None,
-            style=None,
-            variant=None,
-            weight=None,
-            stretch=None,
-            size=font_size,
-            fname=None,
-            _init=None)
-        font_path = font_manager.findfont(
-            font_properties,
-            fontext='ttf',
-            directory=None,
-            fallback_to_default=True,
-            rebuild_if_missing=True)
+        font_manager = matplotlib.font_manager.FontManager(size=font_size)
+        font_properties = matplotlib.font_manager.FontProperties(size=font_size)
+        font_path = font_manager.findfont(font_properties)
 
     return ImageFont.truetype(font=font_path, size=font_size)
 
@@ -389,7 +374,7 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_image(nouns, entities, images, template_image_path, detector=None):
+def create_image(nouns, entities, images, template_image_path, detector=None, show_images=False):
     if detector is None:
         detector = vision.ObjectDetector()
 
@@ -403,7 +388,7 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
         height_ratio = height / 512
     else:
         boxes = []
-        width, height = 0, 0
+        width, height = image_width, image_height
 
 
     if width < height:
@@ -464,9 +449,9 @@ def create_image(nouns, entities, images, template_image_path, detector=None):
             box = [0] * 4
 
             box_width = random.randint(
-                int(0.25 * new_width), int(0.60 * new_width))
+                int(0.35 * new_width), int(0.70 * new_width))
             box_height = random.randint(
-                int(0.25 * new_width), int(0.60 * new_height))
+                int(0.35 * new_width), int(0.70 * new_height))
             box_area = box_width * box_height
 
             box[0] = random.randint(0, new_width - box_width)
