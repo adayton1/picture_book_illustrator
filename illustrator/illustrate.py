@@ -71,6 +71,7 @@ def google_image_search(keywords,
                         limit=1,
                         image_size="large",
                         type="line-drawing"):
+    keywords = keywords.replace(",", "").replace(";", ".")
     image_downloader_arguments = {
         "keywords": keywords,
         "output_directory": output_dir,
