@@ -662,7 +662,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/short_story.txt'))
+            os.path.dirname(__file__), '../data/object_detection_story.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
