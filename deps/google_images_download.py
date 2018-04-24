@@ -28,6 +28,7 @@ import datetime
 import json
 import re
 import codecs
+import http
 
 args_list = ["keywords", "keywords_from_file", "prefix_keywords", "suffix_keywords",
              "limit", "related_images", "format", "color", "color_type", "usage_rights", "size",
@@ -591,6 +592,10 @@ class googleimagesdownload:
                 download_message = "UnicodeEncodeError on an image...trying next one..." + " Error: " + str(e)
                 return_image_name = ''
 
+        except http.client.IncompleteRead as e:
+            download_status = 'fail'
+            download_message = "HTTPError on an image...trying next one..." + " Error: " + str(e)
+            return_image_name = ''
         except HTTPError as e:  # If there is any HTTPError
             download_status = 'fail'
             download_message = "HTTPError on an image...trying next one..." + " Error: " + str(e)
