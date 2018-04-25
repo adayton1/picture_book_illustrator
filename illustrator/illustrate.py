@@ -66,6 +66,13 @@ def read_file(input_file):
     pages = text.split("\n")
 
     return text, pages
+def get_gender(name):
+    gender = gender_detector.get_gender(name)
+    if gender == 'male':
+        name = 'boy'
+    elif gender == 'female':
+        name = 'girl'
+    return name
 
 
 def google_image_search(keywords,
@@ -156,7 +163,7 @@ def find_noun_images(page_doc, output_dir):
         # Download image
         if noun_token.ent_type_ == "PERSON":
             keyword_search = chunk.text
-            gender = gender_detector.get_gender(noun)
+            gender = get_gender(noun)
             keyword_search = gender + " full length person white background"
             image_path = google_image_search(
                 keyword_search, noun, output_dir, type=None)
@@ -184,8 +191,7 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
         nouns.append(noun)
         if noun_token.ent_type_ == "PERSON":
-            text = text.replace(noun_token.text,
-                                gender_detector.get_gender(noun))
+            text = text.replace(noun_token.text, get_gender(noun))
 
     file_paths = google_image_search(
         text,
