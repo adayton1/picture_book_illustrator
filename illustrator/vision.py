@@ -4,8 +4,7 @@ from collections import defaultdict
 
 import numpy as np
 import tensorflow as tf
-
-from PIL import Image
+import cv2
 
 # HACK
 import utils
@@ -175,15 +174,14 @@ class ObjectDetector(object):
         return outputs
 
     def load_image(self, path):
-        image = Image.open(path)
-        (w, h) = image.size
-        return np.array(image.getdata()).reshape((h, w, 3)).astype(np.uint8)
+        return cv2.imread(path)
 
 
 if __name__ == '__main__':
     import random
     import matplotlib
     import matplotlib.pyplot as plt
+    from PIL import Image
 
     colors = list(matplotlib.colors.cnames.keys())
     used_colors = []
