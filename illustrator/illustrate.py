@@ -59,13 +59,14 @@ def get_font(font_name=None, font_size=16):
 
 
 def read_file(input_file):
-
+    pages = []
     with codecs.open(input_file, "r", "utf-8") as f:
-        text = f.read()
+        for line in f:
+            if line and not re.match(r"^(\s*#+\s*|\s+$)", line):
+                pages.append(line.strip())
+    return ' '.join(pages), pages
 
-    pages = text.split("\n")
 
-    return text, pages
 def get_gender(name):
     gender = gender_detector.get_gender(name)
     if gender == 'male':
