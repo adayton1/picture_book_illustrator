@@ -209,6 +209,9 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
 
 def find_best_image(original_text, images, nlp, captioner):
+    if not images:
+        return ''
+
     original_text_doc = nlp(original_text)
     captions = captioner.generate(images)
 
@@ -332,10 +335,10 @@ def find_images_for_full_text(text,
         print("Captioning template images and choosing the best...")
         best_template_path = find_best_image(page, possible_template_images,
                                              nlp, captioner)
-
-        # TODO: Add file extension to destination
-        destination = os.path.join(output_dir, "template{0}".format(i))
-        shutil.copy(best_template_path, destination)
+        if best_template_path:
+            # TODO: Add file extension to destination
+            destination = os.path.join(output_dir, "template{0}".format(i))
+            shutil.copy(best_template_path, destination)
 
         template_images.append(destination)
 
