@@ -29,6 +29,7 @@ import json
 import re
 import codecs
 import http
+import hashlib
 
 args_list = [
     "keywords", "keywords_from_file", "prefix_keywords", "suffix_keywords",
@@ -1131,7 +1132,7 @@ class googleimagesdownload:
                     dir_name = search_term + ('-' + arguments['color']
                                               if arguments['color'] else ''
                                               )  #sub-directory
-
+                    dir_name = hashlib.md5(dir_name.encode()).hexdigest()
                     self.create_directories(
                         main_directory, dir_name,
                         arguments['thumbnail'])  #create directories in OS

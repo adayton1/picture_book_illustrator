@@ -99,7 +99,8 @@ def google_image_search(keywords,
     image_downloader.download(image_downloader_arguments)
 
     # Get the path to where the downloaded image was saved
-    download_dir = os.path.join(output_dir, keywords)
+    sub_directory = hashlib.md5((keywords or '').encode()).hexdigest()
+    download_dir = os.path.join(output_dir, sub_directory)
 
     if limit == 1:
         downloaded_file_name = os.listdir(download_dir)[0]
