@@ -432,7 +432,7 @@ def create_image(nouns,
         try:
             noun_image = Image.open(images[noun])
         except:
-            print("Could not open image: {0}".format(images[noun]))
+            print("Could not open image for {}".format(noun))
             continue
 
         if noun in entities:
