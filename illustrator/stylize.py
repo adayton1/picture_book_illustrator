@@ -37,10 +37,14 @@ class Stylizer(object):
         # self.sess.close()
         pass
 
-    def stylize_image(self, image_path, image_size=None):
+    def stylize_image(self,
+                      image_path,
+                      image_size=None,
+                      session_config=tf.ConfigProto(
+                          gpu_options=tf.GPUOptions(allow_growth=True))):
         print('Stylizing image...')
         with tf.Graph().as_default():
-            with tf.Session().as_default() as sess:
+            with tf.Session(config=session_config).as_default() as sess:
                 if image_size:
                     height, width = image_size
                 else:

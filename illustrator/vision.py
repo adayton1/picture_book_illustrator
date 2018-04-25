@@ -26,12 +26,13 @@ tf.logging.set_verbosity(tf.logging.WARN)
 class ImageCaptioner(object):
     """Generate captions for images using default beam search parameters."""
 
-    def __init__(
-            self,
-            checkpoint_path=None,
-            vocab_file=None,
-            model_dir=os.path.join(utils.project_root,
-                                   'deps/Pretrained-Show-and-Tell-model')):
+    def __init__(self,
+                 checkpoint_path=None,
+                 vocab_file=None,
+                 model_dir=os.path.join(utils.project_root,
+                                        'deps/Pretrained-Show-and-Tell-model'),
+                 session_config=tf.ConfigProto(
+                     gpu_options=tf.GPUOptions(allow_growth=True))):
         print('Loading ImageCaptioner model...')
 
         if checkpoint_path is None:
@@ -50,7 +51,7 @@ class ImageCaptioner(object):
         # Create the vocabulary.
         self.vocab = vocabulary.Vocabulary(vocab_file)
 
-        self.sess = tf.Session(graph=g)
+        self.sess = tf.Session(graph=g, config=session_config)
 
         # Load the model from checkpoint.
         restore_fn(self.sess)
@@ -99,12 +100,14 @@ class ObjectDetector(object):
             label_map=os.path.join(
                 utils.project_root,
                 'deps/tensorflow_models/research/object_detection/data/mscoco_label_map.pbtxt'
-            )):
+            ),
+            session_config=tf.ConfigProto(
+                gpu_options=tf.GPUOptions(allow_growth=True))):
         print('Loading ObjectDetector model...')
-        self.graph = tf.Graph()
-        self.sess = tf.Session()
 
-        with self.graph.as_default():
+        self.session_config = session_config
+
+        with tf.Graph().as_default():
             od_graph_def = tf.GraphDef()
             with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
                 serialized_graph = fid.read()
@@ -123,12 +126,12 @@ class ObjectDetector(object):
         # self.sess.close()
         pass
 
-    def compute_bounding_boxes(self, images):
+    def compute_bounding_boxes(self, images ):
         if not isinstance(images, list):
             images = [images]
         outputs = []
         with self.graph.as_default():
-            with tf.Session() as sess:
+            with tf.Session(config=self.session_config) as sess:
                 get_tensor_by_name = tf.get_default_graph().get_tensor_by_name
                 for image in images:
                     if isinstance(image, str):
