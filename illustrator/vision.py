@@ -126,7 +126,7 @@ class ObjectDetector(object):
         # self.sess.close()
         pass
 
-    def compute_bounding_boxes(self, images ):
+    def compute_bounding_boxes(self, images):
         if not isinstance(images, list):
             images = [images]
         outputs = []
