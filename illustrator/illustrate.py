@@ -6,6 +6,8 @@ import errno
 import glob
 import img2pdf
 import math
+import hashlib
+import re
 import matplotlib.font_manager
 from natsort import natsorted
 import os
