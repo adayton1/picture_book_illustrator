@@ -106,8 +106,9 @@ class ObjectDetector(object):
         print('Loading ObjectDetector model...')
 
         self.session_config = session_config
+        self.graph = tf.Graph()
 
-        with tf.Graph().as_default():
+        with self.graph.as_default():
             od_graph_def = tf.GraphDef()
             with tf.gfile.GFile(checkpoint_path, 'rb') as fid:
                 serialized_graph = fid.read()
