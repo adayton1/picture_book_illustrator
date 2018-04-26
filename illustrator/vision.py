@@ -10,6 +10,9 @@ import random
 
 from PIL import Image
 
+import cv2
+
+
 # HACK
 import utils
 utils.extend_syspath([
@@ -178,9 +181,7 @@ class ObjectDetector(object):
         return outputs
 
     def load_image(self, path):
-        image = Image.open(path)
-        (w, h) = image.size
-        return np.array(image.getdata()).reshape((h, w, 3)).astype(np.uint8)
+        return cv2.imread(path)
 
 
 colors = list(matplotlib.colors.cnames.keys())

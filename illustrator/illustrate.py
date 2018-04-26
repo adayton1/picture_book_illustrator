@@ -1,10 +1,13 @@
 from __future__ import unicode_literals
 import codecs
+import copy
 import cv2
 import errno
 import glob
 import img2pdf
 import math
+import hashlib
+import re
 import matplotlib.font_manager
 from natsort import natsorted
 import os
@@ -12,7 +15,8 @@ from PIL import Image, ImageDraw, ImageFont
 import random
 import shutil
 import spacy
-
+import gender_guesser.detector as gender
+gender_detector = gender.Detector(case_sensitive=False)
 import utils
 utils.extend_syspath(['./'])  # HACK
 
@@ -49,20 +53,29 @@ def get_font(font_name=None, font_size=16):
 
     if not font_path:
         font_manager = matplotlib.font_manager.FontManager(size=font_size)
-        font_properties = matplotlib.font_manager.FontProperties(size=font_size)
+        font_properties = matplotlib.font_manager.FontProperties(
+            size=font_size)
         font_path = font_manager.findfont(font_properties)
 
     return ImageFont.truetype(font=font_path, size=font_size)
 
 
 def read_file(input_file):
-
+    pages = []
     with codecs.open(input_file, "r", "utf-8") as f:
-        text = f.read()
+        for line in f:
+            if line and not re.match(r"^(\s*#+\s*|\s+$)", line):
+                pages.append(line.strip())
+    return ' '.join(pages), pages
 
-    pages = text.split("\n")
 
-    return text, pages
+def get_gender(name):
+    gender = gender_detector.get_gender(name)
+    if gender == 'male':
+        name = 'boy'
+    elif gender == 'female':
+        name = 'girl'
+    return name
 
 
 def google_image_search(keywords,
@@ -71,6 +84,7 @@ def google_image_search(keywords,
                         limit=1,
                         image_size="large",
                         type="line-drawing"):
+    keywords = keywords.replace(",", "").replace(";", ".")
     image_downloader_arguments = {
         "keywords": keywords,
         "output_directory": output_dir,
@@ -87,7 +101,8 @@ def google_image_search(keywords,
     image_downloader.download(image_downloader_arguments)
 
     # Get the path to where the downloaded image was saved
-    download_dir = os.path.join(output_dir, keywords)
+    sub_directory = hashlib.md5((keywords or '').encode()).hexdigest()
+    download_dir = os.path.join(output_dir, sub_directory)
 
     if limit == 1:
         downloaded_file_name = os.listdir(download_dir)[0]
@@ -152,10 +167,14 @@ def find_noun_images(page_doc, output_dir):
         # Download image
         if noun_token.ent_type_ == "PERSON":
             keyword_search = chunk.text
-            image_path = google_image_search(keyword_search, noun, output_dir)
+            gender = get_gender(noun)
+            keyword_search = gender + " full length person white background"
+            image_path = google_image_search(
+                keyword_search, noun, output_dir, type=None)
         else:
             keyword_search = chunk.text + " white background"
-            image_path = google_image_search(keyword_search, noun, output_dir, type=None)
+            image_path = google_image_search(
+                keyword_search, noun, output_dir, type=None)
 
         # Save noun and the path to the image
         images[noun] = image_path
@@ -165,7 +184,7 @@ def find_noun_images(page_doc, output_dir):
 
 def find_template_images(page_doc, output_dir, num_images=5):
     nouns = []
-
+    text = copy.copy(page_doc.text)
     for i, chunk in enumerate(page_doc.noun_chunks):
         # Get noun
         noun_token = chunk.root
@@ -175,11 +194,11 @@ def find_template_images(page_doc, output_dir, num_images=5):
             continue
 
         nouns.append(noun)
+        if noun_token.ent_type_ == "PERSON":
+            text = text.replace(noun_token.text, get_gender(noun))
 
-    # keyword_string = ' '.join(keywords)
-    keyword_string = page_doc.text
     file_paths = google_image_search(
-        keyword_string,
+        text,
         "template",
         output_dir,
         limit=num_images,
@@ -190,6 +209,9 @@ def find_template_images(page_doc, output_dir, num_images=5):
 
 
 def find_best_image(original_text, images, nlp, captioner):
+    if not images:
+        return ''
+
     original_text_doc = nlp(original_text)
     captions = captioner.generate(images)
 
@@ -307,16 +329,16 @@ def find_images_for_full_text(text,
         page_nouns, possible_template_images = find_template_images(
             doc,
             os.path.join(output_dir, "templates{0}".format(i)),
-            num_images=10)
+            num_images=20)
         nouns.append(page_nouns)
 
         print("Captioning template images and choosing the best...")
         best_template_path = find_best_image(page, possible_template_images,
                                              nlp, captioner)
-
-        # TODO: Add file extension to destination
-        destination = os.path.join(output_dir, "template{0}".format(i))
-        shutil.copy(best_template_path, destination)
+        if best_template_path:
+            # TODO: Add file extension to destination
+            destination = os.path.join(output_dir, "template{0}".format(i))
+            shutil.copy(best_template_path, destination)
 
         template_images.append(destination)
 
@@ -378,7 +400,12 @@ def resize_preserve_aspect_ratio_PIL(image, target_area):
     return new_image
 
 
-def create_image(nouns, entities, images, template_image_path, detector=None, show_images=False):
+def create_image(nouns,
+                 entities,
+                 images,
+                 template_image_path,
+                 detector=None,
+                 show_images=False):
     if detector is None:
         detector = vision.ObjectDetector()
 
@@ -393,7 +420,6 @@ def create_image(nouns, entities, images, template_image_path, detector=None, sh
     else:
         boxes = []
         width, height = image_width, image_height
-
 
     if width < height:
         new_width = height
@@ -411,7 +437,7 @@ def create_image(nouns, entities, images, template_image_path, detector=None, sh
         try:
             noun_image = Image.open(images[noun])
         except:
-            print("Could not open image: {0}".format(images[noun]))
+            print("Could not open image for {}".format(noun))
             continue
 
         if noun in entities:
@@ -673,8 +699,7 @@ if __name__ == "__main__":
         required=False,
         help='Path to the output directory.',
         default=os.path.join(
-            os.path.dirname(__file__),
-            '../illustrated_books/object_detection'))
+            os.path.dirname(__file__), '../books/short_story'))
     parser.add_argument(
         '--font',
         type=str,
