@@ -12,7 +12,6 @@ from PIL import Image
 
 import cv2
 
-
 # HACK
 import utils
 utils.extend_syspath([
@@ -173,14 +172,16 @@ class ObjectDetector(object):
                     classes = model_output['detection_classes'][0].astype(int)
                     for i in range(int(model_output['num_detections'][0])):
                         box = model_output['detection_boxes'][0][i]
+                        ymin, xmin, ymax, xmax = box
                         # convert to normalized (pixel) coordinates
-                        # ymin, xmin, ymax, xmax = box
-                        box[0] *= image.shape[0]
-                        box[1] *= image.shape[1]
-                        box[2] *= image.shape[0]
-                        box[3] *= image.shape[1]
+                        ymin *= image.shape[0]
+                        xmin *= image.shape[1]
+                        ymax *= image.shape[0]
+                        xmax *= image.shape[1]
                         key = self.category_index[classes[i]]['name']
-                        output[key].append(box.astype(int))
+                        # reorder to xmin, ymin, xmax, ymax for illustrate.py
+                        b = np.array([xmin, ymin, xmax, ymax]).astype(int)
+                        output[key].append(b)
                     outputs.append(output)
         return outputs
 
@@ -206,7 +207,7 @@ def plot_bounding_boxes(img, boxes, used_colors=list()):
         color = get_unused_color(used_colors)
 
         for box in box_group:
-            ymin, xmin, ymax, xmax = box
+            xmin, ymin, xmax, ymax = box
             plt.gca().add_patch(
                 plt.Rectangle(
                     (xmin, ymin),
