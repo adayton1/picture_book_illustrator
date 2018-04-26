@@ -201,6 +201,7 @@ def get_unused_color(used_colors=list()):
 
 
 def plot_bounding_boxes(img, boxes, used_colors=list()):
+    plt.figure()
     plt.imshow(img)
 
     for label, box_group in boxes.items():
