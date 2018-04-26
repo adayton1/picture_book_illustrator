@@ -406,7 +406,7 @@ def create_image(nouns,
                  images,
                  template_image_path,
                  detector=None,
-                 show_images=True):
+                 show_images=False):
     if detector is None:
         detector = vision.ObjectDetector()
 
