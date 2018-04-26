@@ -1,6 +1,7 @@
 bs4
 cchardet
 Cython
+gender_guesser
 img2pdf
 lxml
 matplotlib
