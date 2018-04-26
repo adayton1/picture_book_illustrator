@@ -430,8 +430,10 @@ def create_image(nouns,
 
     new_image = Image.new('RGB', (new_width, new_height), color='white')
 
-    x_offset = int((new_width - width) / 2.0)
-    y_offset = int((new_height - height) / 2.0)
+    # x_offset = int((new_width - width) / 2.0)
+    # y_offset = int((new_height - height) / 2.0)
+    x_offset = 0
+    y_offset = 0
 
     for noun in nouns:
         try:
@@ -447,10 +449,10 @@ def create_image(nouns,
             box = boxes[noun][0]
 
             # xmin, ymin, xmax, ymax
-            box[0] *= width_ratio
-            box[2] *= width_ratio
-            box[1] *= height_ratio
-            box[3] *= height_ratio
+            # box[0] *= width_ratio
+            # box[2] *= width_ratio
+            # box[1] *= height_ratio
+            # box[3] *= height_ratio
 
             box_width = box[2] - box[0]
             box_height = box[3] - box[1]
@@ -459,9 +461,10 @@ def create_image(nouns,
                 noun_image, box_area)
             resized_image = make_white_transparent(resized_image)
             noun_image_width, noun_image_height = resized_image.size
-            additional_x_offset = int((box_width - noun_image_width) / 2.0)
-            additional_y_offset = int((box_height - noun_image_height) / 2.0)
-
+            # additional_x_offset = int((box_width - noun_image_width) / 2.0)
+            # additional_y_offset = int((box_height - noun_image_height) / 2.0)
+            additional_x_offset = 0
+            additional_y_offset = 0
             upper_left_x = int(box[0] + x_offset + additional_x_offset)
             upper_left_y = int(box[1] + y_offset + additional_y_offset)
 
