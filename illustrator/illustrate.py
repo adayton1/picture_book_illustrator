@@ -411,7 +411,7 @@ def create_image(nouns,
 
     if template_image_path != "":
         template_image = detector.load_image(template_image_path)
-        boxes = detector.compute_bounding_boxes(template_image)
+        boxes = detector.compute_bounding_boxes(template_image)[0]
 
         reference_image = Image.open(template_image_path)
         width, height = reference_image.size
@@ -443,36 +443,32 @@ def create_image(nouns,
         if noun in entities:
             noun = entities[noun]
 
-        if noun in boxes and boxes[noun].size:
-            if noun in boxes:
-                box = boxes[noun][0]
-            else:
-                box = boxes[entities[noun]].size
+        if noun in boxes:
+            box = boxes[noun][0]
 
-            if box.size:
-                box[0] *= width_ratio
-                box[2] *= width_ratio
-                box[1] *= height_ratio
-                box[3] *= height_ratio
+            # xmin, ymin, xmax, ymax
+            box[0] *= width_ratio
+            box[2] *= width_ratio
+            box[1] *= height_ratio
+            box[3] *= height_ratio
 
-                box_width = box[2] - box[0]
-                box_height = box[3] - box[1]
-                box_area = box_width * box_height
-                resized_image = resize_preserve_aspect_ratio_PIL(
-                    noun_image, box_area)
-                resized_image = make_white_transparent(resized_image)
-                noun_image_width, noun_image_height = resized_image.size
-                additional_x_offset = int((box_width - noun_image_width) / 2.0)
-                additional_y_offset = int(
-                    (box_height - noun_image_height) / 2.0)
+            box_width = box[2] - box[0]
+            box_height = box[3] - box[1]
+            box_area = box_width * box_height
+            resized_image = resize_preserve_aspect_ratio_PIL(
+                noun_image, box_area)
+            resized_image = make_white_transparent(resized_image)
+            noun_image_width, noun_image_height = resized_image.size
+            additional_x_offset = int((box_width - noun_image_width) / 2.0)
+            additional_y_offset = int((box_height - noun_image_height) / 2.0)
 
-                upper_left_x = int(box[0] + x_offset + additional_x_offset)
-                upper_left_y = int(box[1] + y_offset + additional_y_offset)
+            upper_left_x = int(box[0] + x_offset + additional_x_offset)
+            upper_left_y = int(box[1] + y_offset + additional_y_offset)
 
-                new_image.paste(
-                    resized_image,
-                    box=(upper_left_x, upper_left_y),
-                    mask=resized_image)
+            new_image.paste(
+                resized_image,
+                box=(upper_left_x, upper_left_y),
+                mask=resized_image)
 
         else:
             # Choose random box
