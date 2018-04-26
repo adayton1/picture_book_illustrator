@@ -16,15 +16,16 @@ import random
 import shutil
 import spacy
 import gender_guesser.detector as gender
-gender_detector = gender.Detector(case_sensitive=False)
 import utils
-utils.extend_syspath(['./'])  # HACK
 
 from deps import google_images_download
 import stylize
 import vision
 
+utils.extend_syspath(['./'])  # HACK
+
 # Module variables
+gender_detector = gender.Detector(case_sensitive=False)
 image_downloader = google_images_download.googleimagesdownload()
 page_width = 480   # 5 inches
 page_height = 672  # 7 inches
@@ -405,13 +406,16 @@ def create_image(nouns,
                  images,
                  template_image_path,
                  detector=None,
-                 show_images=False):
+                 show_images=True):
     if detector is None:
         detector = vision.ObjectDetector()
 
     if template_image_path != "":
         template_image = detector.load_image(template_image_path)
         boxes = detector.compute_bounding_boxes(template_image)[0]
+
+        if show_images:
+            vision.plot_bounding_boxes(template_image, boxes)
 
         reference_image = Image.open(template_image_path)
         width, height = reference_image.size
@@ -430,10 +434,8 @@ def create_image(nouns,
 
     new_image = Image.new('RGB', (new_width, new_height), color='white')
 
-    # x_offset = int((new_width - width) / 2.0)
-    # y_offset = int((new_height - height) / 2.0)
-    x_offset = 0
-    y_offset = 0
+    x_offset = int((new_width - width) / 2.0)
+    y_offset = int((new_height - height) / 2.0)
 
     for noun in nouns:
         try:
@@ -448,23 +450,26 @@ def create_image(nouns,
         if noun in boxes:
             box = boxes[noun][0]
 
-            # xmin, ymin, xmax, ymax
-            # box[0] *= width_ratio
-            # box[2] *= width_ratio
-            # box[1] *= height_ratio
-            # box[3] *= height_ratio
+            # xmin, ymin, xmax, ymax = box
 
             box_width = box[2] - box[0]
             box_height = box[3] - box[1]
-            box_area = box_width * box_height
+
+            new_box_width = box_width * width_ratio
+            new_box_height = box_height * height_ratio
+
+            #box_area = box_width * box_height
+            box_area = new_box_width * new_box_height
+
             resized_image = resize_preserve_aspect_ratio_PIL(
                 noun_image, box_area)
             resized_image = make_white_transparent(resized_image)
+
             noun_image_width, noun_image_height = resized_image.size
-            # additional_x_offset = int((box_width - noun_image_width) / 2.0)
-            # additional_y_offset = int((box_height - noun_image_height) / 2.0)
-            additional_x_offset = 0
-            additional_y_offset = 0
+
+            additional_x_offset = int((box_width - noun_image_width) / 2.0)
+            additional_y_offset = int((box_height - noun_image_height) / 2.0)
+
             upper_left_x = int(box[0] + x_offset + additional_x_offset)
             upper_left_y = int(box[1] + y_offset + additional_y_offset)
 
@@ -691,14 +696,14 @@ if __name__ == "__main__":
         required=False,
         help='Path to the text file.',
         default=os.path.join(
-            os.path.dirname(__file__), '../data/short_story.txt'))
+            os.path.dirname(__file__), '../data/fred_and_his_cat.txt'))
     parser.add_argument(
         '--output-dir',
         type=str,
         required=False,
         help='Path to the output directory.',
         default=os.path.join(
-            os.path.dirname(__file__), '../books/short_story'))
+            os.path.dirname(__file__), '../books/fred_and_his_cat_6'))
     parser.add_argument(
         '--font',
         type=str,
