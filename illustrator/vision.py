@@ -2,9 +2,16 @@ import os
 import sys
 from collections import defaultdict
 
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import random
+
+from PIL import Image
+
 import cv2
+
 
 # HACK
 import utils
@@ -181,42 +188,44 @@ class ObjectDetector(object):
         return cv2.imread(path)
 
 
-if __name__ == '__main__':
-    import random
-    import matplotlib
-    import matplotlib.pyplot as plt
-    from PIL import Image
+colors = list(matplotlib.colors.cnames.keys())
 
-    colors = list(matplotlib.colors.cnames.keys())
-    used_colors = []
 
-    def get_unused_color():
+def get_unused_color(used_colors=list()):
+    color = random.choice(colors)
+    while color in used_colors:
         color = random.choice(colors)
-        while color in used_colors:
-            color = random.choice(colors)
-        used_colors.append(color)
-        return color
+    used_colors.append(color)
+    return color
 
+
+def plot_bounding_boxes(img, boxes, used_colors=list()):
+    plt.imshow(img)
+
+    for label, box_group in boxes.items():
+        color = get_unused_color(used_colors)
+
+        for box in box_group:
+            ymin, xmin, ymax, xmax = box
+            plt.gca().add_patch(
+                plt.Rectangle(
+                    (xmin, ymin),
+                    width=xmax - xmin,
+                    height=ymax - ymin,
+                    color=color,
+                    label=label,
+                    fill=False,
+                    linewidth=2))
+            label = None
+
+    plt.legend()
+    plt.show()
+
+
+if __name__ == '__main__':
     with ObjectDetector() as detector:
         boxes = detector.compute_bounding_boxes(sys.argv[1:])
         for i, box_output in enumerate(boxes):
-            image = Image.open(sys.argv[i + 1])  # HACK
-
-            plt.imshow(image)
-            for label, box_group in box_output.items():
-                color = get_unused_color()
-                for box in box_group:
-                    ymin, xmin, ymax, xmax = box
-                    plt.gca().add_patch(
-                        plt.Rectangle(
-                            (xmin, ymin),
-                            width=xmax - xmin,
-                            height=ymax - ymin,
-                            color=color,
-                            label=label,
-                            fill=False,
-                            linewidth=2))
-                    label = None
-            plt.legend()
-            plt.show()
             used_colors = []
+            image = Image.open(sys.argv[i + 1])  # HACK
+            plot_bounding_boxes(image, box_output, used_colors)
