@@ -899,8 +899,8 @@ class googleimagesdownload:
                     count) + ". " + image_name
 
                 try:
-                    output_file = open(path, 'wb')
-                    output_file.write(data)
+                    with open(path, 'wb') as output_file:
+                        output_file.write(data)
                 except OSError as e:
                     download_status = 'fail'
                     download_message = "OSError on an image...trying next one..." + " Error: " + str(
@@ -911,8 +911,6 @@ class googleimagesdownload:
                     download_message = "IOError on an image...trying next one..." + " Error: " + str(
                         e)
                     return_image_name = ''
-                finally:
-                    output_file.close()
 
                 #return image name back to calling method to use it for thumbnail downloads
                 download_status = 'success'
