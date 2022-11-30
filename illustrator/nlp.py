@@ -61,8 +61,7 @@ def get_entities(filename):
 
 if __name__ == '__main__':
     # Set the filename
-    filename = os.path.join(
-        os.path.dirname(__file__), '../data/peter_rabbit.txt')
+    filename = os.path.join(os.path.dirname(__file__), '../data/peter_rabbit.txt')
 
     # Test for getting the noun chunks
     noun_chunks = get_noun_chunks(filename)

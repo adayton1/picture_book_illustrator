@@ -102,9 +102,7 @@ ENV/
 
 # Add additional files/directories here
 .idea
-.DS_Store
+.DS_Stoe
+deps/
 checkpoints/
 logdir/
-test.py
-illustrated_books/
-books/
